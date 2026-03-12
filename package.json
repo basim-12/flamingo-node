@@ -1,23 +1,19 @@
 {
-  "name": "flamingo-wallet-minimal",
+  "name": "flamingo-node",
   "version": "0.1.0",
   "type": "commonjs",
   "scripts": {
-    "start": "budo lib/web.js:bundle.js --live --host 0.0.0.0",
-    "build": "browserify lib/web.js > bundle.js",
     "cli": "node lib/cli.js",
     "lint": "standardx --fix --eslint"
   },
   "bin": {
-    "fw": "node lib/cli.js"
+    "fw": "lib/cli.js"
   },
   "dependencies": {
     "bip39": "^3.1.0",
     "ws": "^8.16.0"
   },
   "devDependencies": {
-    "browserify": "^17.0.0",
-    "budo": "^11.8.4",
     "standardx": "^7.0.0"
   },
   "eslintConfig": {
