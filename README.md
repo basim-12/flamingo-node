@@ -2,13 +2,6 @@
 
 Bitcoin Lightning Network backend — manages bitcoind, lightningd, and a WebSocket bridge.
 
-## Prerequisites (bare metal only)
-
-- bitcoind & bitcoin-cli (Bitcoin Core) on PATH
-- lightningd & lightning-cli (Core Lightning) on PATH
-- Node.js >= 16
-
-> **Tip:** Using Docker? Skip prerequisites — `fw up` handles everything.
 
 ## Install
 
@@ -23,7 +16,7 @@ fw init .                # create env.json with defaults in current dir
 fw start                 # start bitcoind, lightningd, websocket backend
 fw stop                  # stop everything
 fw status                # show status of all daemons
-fw up [ui-mode]          # install docker if needed + build & run container
+fw up                    # auto-creates env.json if needed, install docker + build & run
 fw down                  # stop & remove docker container
 fw logs                  # tail docker container logs
 fw run <scenario.json>   # run a network scenario from a JSON file
@@ -38,7 +31,6 @@ fw walletbalance         # get wallet balance
 ### Option A: Docker (easiest)
 
 ```bash
-fw init .
 fw up
 ```
 
@@ -101,3 +93,10 @@ Use `fw run <scenario.json>` to initialize a Lightning Network topology from a J
   ]
 }
 ```
+
+## Related Repositories
+
+- [flamingo-node](https://github.com/playproject-io/flamingo-node) — Backend: bitcoind, lightningd, WebSocket bridge
+- [flamingo-docker](https://github.com/playproject-io/flamingo-docker) — Docker environment for the stack
+- [flamingo-wallet](https://github.com/playproject-io/flamingo-wallet) — Main entry point & orchestration
+- [flamingo-ui](https://github.com/playproject-io/flamingo-ui) — Reusable UI component library
