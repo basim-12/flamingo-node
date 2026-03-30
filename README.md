@@ -11,36 +11,57 @@ npm install -g flamingo-node
 
 ## CLI Reference
 
-```
-fw init .                # create env.json with defaults in current dir
-fw start                 # start bitcoind, lightningd, websocket backend
-fw stop                  # stop everything
-fw status                # show status of all daemons
-fw up                    # auto-creates env.json if needed, install docker + build & run
-fw down                  # stop & remove docker container
-fw logs                  # tail docker container logs
-fw run <scenario.json>   # run a network scenario from a JSON file
-fw funds                 # list lightning funds
-fw getinfo               # get node info
-fw newaddress            # generate a new bitcoin address
-fw walletbalance         # get wallet balance
+```text
+fw up                    # Auto-creates env.json, installs docker, builds & runs
+fw up --attach           # Start and steam logs to terminal
+fw up --run <file.json>  # Start and run a network scenario
+fw up --shutdown         # Stop and remove the node container
 ```
 
-## Quick Start
+## How is `fw start/stop` different from `fw up/down`?
 
-### Option A: Docker (easiest)
+Previously, `start/stop` managed local/bare-metal processes while `up/down` managed the Docker environment. These have been unified into `fw up` to simplify the API surface and hide implementation details. Docker is now considered an internal implementation detail that the CLI manages automatically.
 
-```bash
-fw up
+## Environment Configuration
+
+The CLI uses an `env.json` file in your current directory. If it doesn't exist, it will be automatically created from `env.default.json` when you run `fw up`.
+
+### Default `env.json` structure:
+
+```json
+{
+  "BITCOIN_DATADIR": "/data/bitcoin",
+  "BITCOIN_RPCUSER": "user",
+  "BITCOIN_RPCPASSWORD": "password",
+  "BITCOIN_RPCPORT": "18443",
+  "BITCOIN_CLI_BIN": "/usr/local/bin/bitcoin-cli",
+  "LIGHTNING_DIR_4": "/data/lightning4",
+  "LIGHTNING_DIR_5": "/data/lightning5",
+  "LIGHTNING_DIR_6": "/data/lightning6",
+  "LIGHTNINGD_BIN": "/usr/local/bin/lightningd",
+  "LIGHTNING_CLI_BIN": "/usr/local/bin/lightning-cli",
+  "WS_PORT": "8080"
+}
 ```
 
-### Option B: Bare Metal
+## WebSocket API
 
-```bash
-fw init .
-# Edit env.json with your local paths
-fw start
-```
+All node-specific interactions (getinfo, funds, newaddress, etc.) are only available via the WebSocket API on port `8080`.
+
+### Admin Commands
+
+For testing scenarios, several `admin_` commands are available:
+- `admin_reset_world`: Closes all channels and clears state for a fresh start.
+- `admin_fund_node`: Funds a specific node with BTC from the miner reward (regtest).
+- `initialize_node_wallet`: Provisions a fresh wallet/identity for a node.
+
+
+## How is `fw start/stop` different from `fw up/down`?
+
+Previously, `start/stop` managed local/bare-metal processes (bitcoind, lightningd) while `up/down` managed the Docker environment. 
+
+To simplify the API surface and hide implementation details, these have been unified into `fw up`. Whether it's running locally or in Docker is now an internal detail, allowing for a more consistent developer experience.
+
 
 ## Network Scenarios
 
