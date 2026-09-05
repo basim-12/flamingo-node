@@ -2,4 +2,5 @@
 /package-lock.json
 data
 env.json
+hyperdrive-backup/
 .DS_Store

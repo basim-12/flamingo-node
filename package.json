@@ -4,14 +4,23 @@
   "type": "commonjs",
   "scripts": {
     "cli": "node lib/cli.js",
+    "backup:poc": "bare scripts/hyperdrive-poc.js",
     "lint": "standardx --fix --eslint"
   },
   "bin": {
     "fw": "lib/cli.js"
   },
   "dependencies": {
+    "b4a": "1.8.1",
+    "bare": "1.31.2",
+    "bare-crypto": "1.15.3",
+    "bare-fs": "4.8.1",
+    "bare-path": "3.1.2",
+    "bare-stream": "2.13.4",
     "bip39": "^3.1.0",
+    "corestore": "7.12.2",
     "flamingo-docker": "file:../flamingo-docker",
+    "hyperdrive": "13.3.3",
     "ws": "^8.16.0"
   },
   "devDependencies": {

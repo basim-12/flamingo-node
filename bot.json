@@ -1,0 +1,7 @@
+{
+  "format": "flamingo-hyperdrive-poc/v1",
+  "name": "flamingo-node",
+  "network": "regtest",
+  "dataDir": "./data",
+  "storeDir": "./hyperdrive-backup"
+}

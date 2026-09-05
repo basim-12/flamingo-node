@@ -15,7 +15,7 @@ npm install -g flamingo-node
 fw up                    # Auto-creates env.json, installs docker, builds & runs
 fw up --attach           # Start and steam logs to terminal
 fw up --run <file.json>  # Start and run a network scenario
-fw up --shutdown         # Stop and remove the node container
+fw up --shutdown         # Cleanly stop nodes and remove the container
 ```
 
 ## How is `fw start/stop` different from `fw up/down`?
