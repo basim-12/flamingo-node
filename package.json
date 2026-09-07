@@ -20,6 +20,7 @@
     "bip39": "^3.1.0",
     "corestore": "7.12.2",
     "flamingo-docker": "file:../flamingo-docker",
+    "hypercore-storage": "3.2.1",
     "hyperdrive": "13.3.3",
     "ws": "^8.16.0"
   },
