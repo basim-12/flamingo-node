@@ -5,6 +5,7 @@
   "scripts": {
     "cli": "node lib/cli.js",
     "backup:poc": "bare scripts/hyperdrive-poc.js",
+    "docs": "bare scripts/docs.js",
     "lint": "standardx --fix --eslint"
   },
   "bin": {
@@ -35,6 +36,7 @@
     "ws": "^8.16.0"
   },
   "devDependencies": {
+    "brittle": "4.2.0",
     "standardx": "^7.0.0"
   },
   "eslintConfig": {
