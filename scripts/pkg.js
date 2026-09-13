@@ -260,7 +260,7 @@ class Packages {
       const url = pathToFileURL(file)
       // Generators and entries run against this CLI's runtime; expose a small fixed
       // set of modules. Reproducible per-package dependency installs are deferred.
-      const runtime = ['bare-process', 'bare-path', 'bare-fs', 'bare-os', 'bare-crypto', 'bare-subprocess', 'bare-url']
+      const runtime = ['bare-process', 'bare-path', 'bare-fs', 'bare-os', 'bare-crypto', 'bare-subprocess', 'bare-url', 'bip39-mnemonic']
       const imports = Object.fromEntries(runtime.flatMap(name => {
         try { return [[name, pathToFileURL(require.resolve(name)).href]] } catch { return [] }
       }))
@@ -279,7 +279,8 @@ class Packages {
     try {
       if (source.generator || source.file) {
         const generator = await this.load(source)
-        try { await generator.fn(drive, { ...source.options, code: generator.code }) } finally { await generator.close() }
+        try { await generator.fn(drive, source.options) } finally { await generator.close() }
+        if (kind === 'bot') await drive.put('/bot.json', Buffer.from(JSON.stringify({ entry: generator.code + '/main.js' }, null, 2)))
       } else if (source.local) await importFolder(drive, source.local)
       else {
         const opened = await this.openDrive(source.link)

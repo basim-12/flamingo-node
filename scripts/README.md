@@ -56,32 +56,32 @@ A generator exports one async function receiving the new Hyperdrive and options:
 
 ```js
 module.exports = async function (drive, options) {
-  // Write bot.json and any app specific initial data to drive.
+  // Write the app's initial data to drive.
 }
 ```
 
 Query parameters become options, for example `?ask=no`. The generator can prompt
 for input or run automatically. Registration happens after it finishes filling
 the drive; failed initialization is cleaned up. Values in `options` are strings.
-When the generator is run from a drive URL or a package, the CLI also passes
-`options.code` — the pinned reference of that source drive — so the generator can
-record it (for example as the `entry` in `bot.json`). Local paths take precedence
-over package names; `.js` may be omitted from a generator path within a package.
+Local paths take precedence over package names; `.js` may be omitted from a
+generator path within a package.
+
+A generator only writes the app's own data. When a bot is created from a
+generator, the CLI adds `bot.json` itself (see Bots).
 
 ```sh
 fw pkg +config "flamingo-node/generate?ask=no"
-fw bot +demo config
 ```
-
-Here `flamingo-node` is an existing code package. Its generator creates the
-per instance configuration, including any required identity setup or reuse.
 
 ## Bots
 
 The code drive contains the application. One bot drive holds both configuration
 and generated data; each application chooses its own folder structure.
 
-`bot.json` contains the information the CLI needs to launch the application:
+`bot.json` contains the information the CLI needs to launch the application. When
+a bot is created from a generator, the CLI writes it: the pinned reference of the
+drive the generator came from, plus `/main.js`. So a code drive keeps its entry in
+`main.js`.
 
 ```json
 {
@@ -114,7 +114,7 @@ store and are refused with a clear message while a bot is running. A bot writes
 
 | Command | Action and behavior |
 | --- | --- |
-| `fw bot +<name> <specifier>` | Register a stopped bot. `<specifier>` is any of the sources above; a `dat://` reference, drive id or package name is used as the configuration drive directly (it must already contain a valid `bot.json`), a local file or `.../generate` runs a generator to produce a fresh bot drive (registered as a package under `<name>` too). Reject an existing bot name, a package-name conflict, or a configuration drive already registered to another bot (checked by drive id). |
+| `fw bot +<name> <specifier>` | Register a stopped bot. `<specifier>` must name a drive — package name, drive id or `dat://` reference — because a bot pins its code to a drive; local paths are refused. A drive on its own is used as the configuration drive directly (it must already contain a valid `bot.json`). `<drive>/generate` runs that drive's generator into a fresh bot drive, the CLI writes its `bot.json`, and it is registered as a package under `<name>` too. Reject an existing bot name, a package-name conflict, or a configuration drive already registered to another bot (checked by drive id). |
 | `fw bot <name>` / `fw bot <name> --see` | Show its drive reference, package name if available, and running/stopped status. |
 | `fw bot` | List registered bots. |
 | `fw bot <name> --run` | Verify and launch the entry from bot.json in the foreground. Reuse existing bot data and identity. A bot is a singleton: refuse if it, or another bot on the same drive, is already running. |
@@ -142,11 +142,10 @@ fw bot +demo "flamingo-node/generate?ask=no"
 fw bot demo --run
 ```
 
-The generator writes two files into the bot drive:
-
-- `bot.json` — the pinned `entry` (`<code-ref>/main.js`).
-- `wallet.json` — a fresh BIP39 mnemonic. Each generated bot drive gets its own,
-  so separate bots have separate identities.
+The generator writes `wallet.json`: a fresh 12-word BIP39 mnemonic, made with
+`bip39-mnemonic`. Each generated bot drive gets its own, so separate bots have
+separate identities. The CLI then adds `bot.json`, pointing at this package's
+pinned `main.js`.
 
 On `fw bot <name> --run` the entry starts the existing Docker flow (`fw up`), then
 calls the existing `initialize_node_wallet` WebSocket API with `action: "recover"`

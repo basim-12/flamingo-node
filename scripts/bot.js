@@ -80,13 +80,13 @@ async function command (service, cmd, cwd, log) {
   if (action === 'create') {
     if (service.bots[name]) throw new Error(`Bot already exists: ${name}`)
     const source = await service.source(cmd.source, cwd)
-    const generated = source.generator || !!source.file
+    if (source.local) throw new Error('A bot needs a drive, not a local path: pass a package name, drive id or dat:// reference')
+    const generated = !!source.file
     if (generated && service.pkgs[name]) throw new Error(`Package already exists: ${name}`)
     let link
     let created = false
     try {
-      if (generated) { link = await service.create(name, cmd.source, cwd, 'bot'); created = true } else if (source.link) link = source.link
-      else throw new Error('A bot needs a configuration drive: pass a dat:// reference, a drive id, or a package name')
+      if (generated) { link = await service.create(name, cmd.source, cwd, 'bot'); created = true } else link = source.link
       const opened = await service.openDrive(link, false)
       try {
         await config(opened.drive)

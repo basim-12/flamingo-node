@@ -13,6 +13,7 @@ const os = require('bare-os')
 const path = require('bare-path')
 const process = require('bare-process')
 const { spawn } = require('bare-subprocess')
+const { validateMnemonic } = require('bip39-mnemonic')
 
 const repo = path.join(__dirname, '..')
 const code_folder = path.join(repo, 'flamingo-node')
@@ -118,7 +119,7 @@ test('a dat:// reference must match exactly', async t => {
 })
 
 // Adding /<file> to a specifier runs that file as a generator instead of copying.
-// The flamingo generator fills a fresh drive with bot.json and wallet.json.
+// The flamingo generator only writes the app's own data: a fresh wallet.json.
 test('generator specifiers run a file from a drive', async t => {
   const specs = {
     'gen-name': 'flamingo-node/generate?ask=no',
@@ -128,7 +129,7 @@ test('generator specifiers run a file from a drive', async t => {
   for (const [name, spec] of Object.entries(specs)) {
     const result = await fw('pkg', '+' + name, spec)
     t.is(result.code, 0, result.err)
-    t.alike(fs.readdirSync(await export_pkg(name)).sort(), ['bot.json', 'wallet.json'], name)
+    t.alike(fs.readdirSync(await export_pkg(name)), ['wallet.json'], name)
   }
 })
 
@@ -142,11 +143,13 @@ test('bot +<name> <generator> creates a stopped bot', async t => {
   t.is(drive_of(await fw('pkg', 'alice')), drive_of(created), 'kept as a package')
 })
 
-// bot.json tells the CLI what to run: the code drive's pinned reference plus the
-// entry file. The code can't change under a bot without its reference changing.
+// bot.json tells the CLI what to run. The CLI writes it itself, not the generator:
+// the pinned reference of the drive the generator came from, plus its main.js.
+// The code can't change under a bot without its reference changing.
 test('bot.json pins the code the bot runs', async t => {
-  const bot = read_json(path.join(await export_pkg('alice'), 'bot.json'))
-  t.is(bot.entry, code_link + '/main.js')
+  const folder = await export_pkg('alice')
+  t.alike(fs.readdirSync(folder).sort(), ['bot.json', 'wallet.json'])
+  t.is(read_json(path.join(folder, 'bot.json')).entry, code_link + '/main.js')
 })
 
 // Every bot gets its own wallet, so two bots are two separate Lightning identities.
@@ -155,26 +158,33 @@ test('each bot gets its own 12-word identity', async t => {
   const alice = read_json(path.join(await export_pkg('alice'), 'wallet.json'))
   const bob = read_json(path.join(await export_pkg('bob'), 'wallet.json'))
   t.is(alice.mnemonic.split(' ').length, 12)
+  t.ok(validateMnemonic(alice.mnemonic), 'a valid BIP39 phrase')
   t.not(alice.mnemonic, bob.mnemonic)
 })
 
-// A bot can also start from a drive that already holds a bot.json, such as one the
-// generator made earlier. The bot then uses that drive as it is.
+// A configuration drive is just a drive with a bot.json in it, so it can also be
+// written by hand, imported as a package, and then registered as a bot as it is.
 test('bot +<name> <config drive> uses an existing configuration drive', async t => {
-  const result = await fw('bot', '+carol', 'gen-name')
+  const folder = path.join(home, 'carol-config')
+  fs.mkdirSync(folder)
+  fs.writeFileSync(path.join(folder, 'bot.json'), JSON.stringify({ entry: code_link + '/main.js' }))
+  t.is((await fw('pkg', '+carol-config', folder)).code, 0)
+  const result = await fw('bot', '+carol', 'carol-config')
   t.is(result.code, 0, result.err)
-  t.is(drive_of(result), drive_of(await fw('pkg', 'gen-name')))
+  t.is(drive_of(result), drive_of(await fw('pkg', 'carol-config')))
 })
 
 // Two bots on one drive would share one wallet and one data folder, so a
 // configuration drive belongs to exactly one bot, and it must contain bot.json.
-// A plain folder isn't a drive, so it can't be one. Local paths win over package
-// names, which is why ./flamingo-node here means the folder, not the package.
+// A bot must pin its code to a drive, so a local folder or local generator file
+// is refused. Local paths win over package names, so ./flamingo-node is the folder.
 test('bot registration is refused when it would clash', async t => {
+  const local = 'A bot needs a drive, not a local path: pass a package name, drive id or dat:// reference'
   t.is((await fw('bot', '+alice', 'flamingo-node/generate?ask=no')).err, 'Bot already exists: alice')
   t.is((await fw('bot', '+dave', 'alice')).err, 'That configuration drive is already used by bot: alice')
   t.is((await fw('bot', '+dave', 'by-link')).err, 'Configuration drive must contain bot.json')
-  t.ok((await fw('bot', '+dave', './flamingo-node')).err.startsWith('A bot needs a configuration drive'), 'a folder is not a drive')
+  t.is((await fw('bot', '+dave', './flamingo-node')).err, local, 'local folder refused')
+  t.is((await fw('bot', '+dave', './flamingo-node/generate.js')).err, local, 'local generator refused')
 })
 
 // Deleting a bot removes its own drive, but never the code it was made from.

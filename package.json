@@ -24,7 +24,7 @@
     "bare-stream": "2.13.4",
     "bare-subprocess": "6.1.0",
     "bare-url": "2.5.4",
-    "bip39": "^3.1.0",
+    "bip39-mnemonic": "2.5.0",
     "corestore": "7.12.2",
     "flamingo-docker": "file:../flamingo-docker",
     "hypercore-crypto": "3.7.0",
