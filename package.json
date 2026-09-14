@@ -12,12 +12,14 @@
     "fw": "lib/cli.js"
   },
   "dependencies": {
+    "acorn": "8.18.0",
+    "acorn-walk": "8.3.5",
     "b4a": "1.8.1",
-    "bare": "1.31.2",
+    "bare": "1.33.0",
     "bare-crypto": "1.15.3",
     "bare-daemon": "1.2.4",
     "bare-fs": "4.8.1",
-    "bare-module": "6.4.0",
+    "bare-module": "7.0.1",
     "bare-os": "3.9.3",
     "bare-path": "3.1.2",
     "bare-process": "4.5.1",

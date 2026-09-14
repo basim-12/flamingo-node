@@ -136,7 +136,6 @@ function tasks (pkgs) {
         } finally {
           await fsp.rm(pidfile, { force: true })
           await opened.close()
-          await entry.close()
           running.delete(name)
         }
       }

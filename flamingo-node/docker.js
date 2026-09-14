@@ -3,6 +3,8 @@ const { spawn } = require('bare-subprocess')
 
 const name = 'flamingo-app'
 const service = require('./docker-compose.json').services.app
+// Read from the drive like the code itself.
+const dockerfile = require('./Dockerfile', { with: { type: 'text' } })
 
 module.exports = { up, down }
 
@@ -10,10 +12,10 @@ module.exports = { up, down }
 // the drive's docker-compose.json describes. `app` is the local flamingo-node
 // folder the backend runs from. The drive doesn't carry env.docker.json, so the
 // compose file's `./` paths come from flamingo-docker.
-async function up (app) {
+async function up(app) {
   if (await docker(['ps', '-q', '-f', `name=^${name}$`])) throw new Error('Flamingo is already running; stop it before starting this bot')
   if (await docker(['ps', '-aq', '-f', `name=^${name}$`])) await docker(['rm', name])
-  await docker(['build', '-t', name, __dirname], { show: true })
+  await docker(['build', '-t', name, '-'], { show: true, input: dockerfile })
   const shared = path.join(app, 'node_modules', 'flamingo-docker') + '/'
   const args = ['run', '-d', '--name', name]
   for (const volume of service.volumes) args.push('-v', volume.replace(/\$\{FLAMINGO_PATH\}/, app).replace(/^\.\//, shared))
@@ -24,7 +26,7 @@ async function up (app) {
 
 // Stop the lightning nodes and bitcoind cleanly before removing the container, so
 // their data isn't cut off mid-write.
-async function down () {
+async function down() {
   if (await docker(['ps', '-q', '-f', `name=^${name}$`])) {
     await retry(async () => (await docker(['logs', name])).includes('All services started.'), 'Node services did not finish starting')
     for (const node of [4, 5, 6]) {
@@ -45,18 +47,18 @@ async function down () {
   await docker(['rm', name])
 }
 
-async function stopped_cleanly (node) {
+async function stopped_cleanly(node) {
   const log = await docker(['exec', name, 'cat', `/data/lightning${node}/debug.log`]).catch(() => '')
   return log.lastIndexOf('JSON-RPC shutdown') > log.lastIndexOf('Server started with public key')
 }
 
-async function running (program) {
+async function running(program) {
   const states = await docker(['exec', name, 'ps', '-C', program, '-o', 'stat=']).catch(() => '')
   return states.split('\n').some(state => state.trim() && !state.trim().startsWith('Z'))
 }
 
 // Wait up to a minute for `check` to return something truthy.
-async function retry (check, message) {
+async function retry(check, message) {
   for (let i = 0; i < 60; i++) {
     const result = await check()
     if (result) return result
@@ -65,9 +67,11 @@ async function retry (check, message) {
   throw new Error(message + '; the container was left running')
 }
 
-function docker (args, { show = false } = {}) {
+function docker(args, { show = false, input = null } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn('docker', args, { stdio: show ? 'inherit' : ['ignore', 'pipe', 'pipe'] })
+    const output = show ? 'inherit' : 'pipe'
+    const child = spawn('docker', args, { stdio: [input === null ? 'ignore' : 'pipe', output, output] })
+    if (input !== null) child.stdin.end(Buffer.from(input))
     let out = ''
     let err = ''
     if (!show) {

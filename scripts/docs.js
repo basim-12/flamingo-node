@@ -177,6 +177,19 @@ test('generator specifiers run a file from a drive', async t => {
   }
 })
 
+// Generators and entries run straight from their drive: bare-module's Loader reads
+// every file through the drive, so nothing is copied to disk first. A dynamic
+// import() would load code around the Loader, so it is refused.
+test('drive code runs straight from the drive; dynamic import() is refused', async t => {
+  const code = path.join(home, 'sneaky-code')
+  fs.mkdirSync(code)
+  fs.writeFileSync(path.join(code, 'generate.js'), "module.exports = async function () { await import('bare-fs') }\n")
+  t.is((await cli('pkg', '+sneaky-code', code)).code, 0)
+  const result = await cli('pkg', '+sneaky', 'sneaky-code/generate')
+  t.ok(result.err.startsWith('Dynamic import is disabled'), 'refused')
+  t.absent(fs.existsSync(path.join(home, '.flamingo', 'code')), 'no code was copied to disk')
+})
+
 // The one-step way to make a bot: run the generator and register the result.
 // A new bot is stopped, and its drive is also kept as a package of the same name.
 test('bot +<name> <generator> creates a stopped bot', async t => {

@@ -18,8 +18,8 @@ for bots running from them.
 dat://<length>.<fork>.<id>.<hash>
 ```
 
-References identify an exact drive revision. Code is checked out at that revision
-and its hash verified before execution. A bot's code reference stays pinned, its
+References identify an exact drive revision. Code runs straight from that revision
+(read through the drive, never copied to disk) after its hash is verified. A bot's code reference stays pinned, its
 own drive reference advances as data is saved. The hash is the lowercase hex
 Hypercore tree hash at the specified length; the ID is z-base-32. Referenced
 drives and file data must already be available locally in this iteration.
@@ -200,7 +200,6 @@ replication remain deferred.
 ├── pkgs.json       # { "package-name": "dat://...", ... }
 ├── bots.json       # { "bot-name": "dat://...", ... }
 ├── corestore/      # Shared persistent drive storage
-├── code/           # Transient verified code checkouts, removed after each run
 └── run/            # <bot-name>.pid while it runs; <bot-name>.log from its last --run
 ```
 
