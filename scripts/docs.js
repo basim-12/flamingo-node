@@ -13,7 +13,7 @@ const os = require('bare-os')
 const path = require('bare-path')
 const process = require('bare-process')
 const { spawn } = require('bare-subprocess')
-const { validateMnemonic } = require('bip39-mnemonic')
+const bip39 = require('bip39-mnemonic')
 const packs = require('./packs')
 const tasks = require('./tasks')
 
@@ -215,7 +215,7 @@ test('each bot gets its own 12-word identity', async t => {
   const alice = read_json(path.join(await export_pkg('alice'), 'wallet.json'))
   const bob = read_json(path.join(await export_pkg('bob'), 'wallet.json'))
   t.is(alice.mnemonic.split(' ').length, 12)
-  t.ok(validateMnemonic(alice.mnemonic), 'a valid BIP39 phrase')
+  t.ok(bip39.validateMnemonic(alice.mnemonic), 'a valid BIP39 phrase')
   t.not(alice.mnemonic, bob.mnemonic)
 })
 

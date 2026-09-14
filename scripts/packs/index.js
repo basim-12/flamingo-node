@@ -23,7 +23,7 @@ module.exports = packs
 packs.reference = reference
 packs.drive_link = drive_link
 
-function packs(root = ROOT) {
+function packs (root = ROOT) {
   let store = null
   let registry = Object.create(null)
   let saving = Promise.resolve()
@@ -32,12 +32,12 @@ function packs(root = ROOT) {
 
   // Read pkgs.json without opening the store, so inspecting still works while a
   // running bot holds the store's lock.
-  async function registries() {
+  async function registries () {
     await fsp.mkdir(root, { recursive: true, mode: 0o700 })
     registry = Object.assign(Object.create(null), await read_json(path.join(root, 'pkgs.json')))
   }
 
-  async function open() {
+  async function open () {
     await registries()
     store = new Corestore(path.join(root, 'corestore'))
     await store.ready().catch(err => {
@@ -45,38 +45,38 @@ function packs(root = ROOT) {
     })
   }
 
-  async function close() {
+  async function close () {
     await saving
     if (store) await store.close()
   }
 
-  function save() {
+  function save () {
     saving = saving.then(() => write_json(path.join(root, 'pkgs.json'), registry))
     return saving
   }
 
-  function list() {
+  function list () {
     return Object.keys(registry).sort()
   }
 
-  function get(name) {
+  function get (name) {
     return registry[name]
   }
 
   // The package name registered for the drive behind `link`, if there is one.
-  function find(link) {
+  function find (link) {
     const { id } = reference(link)
     return list().find(name => reference(registry[name]).id === id)
   }
 
-  function info(name) {
+  function info (name) {
     if (!registry[name]) throw new Error(`Unknown package: ${name}`)
     return `Name: ${name}\nDrive: ${registry[name]}`
   }
 
   // Resolve a <specifier>: a local folder or file, a dat:// reference, a package
   // name or a drive id, each optionally followed by /<file> to run a generator.
-  async function source(spec, cwd) {
+  async function source (spec, cwd) {
     const q = spec.indexOf('?')
     const base = q < 0 ? spec : spec.slice(0, q)
     const options = Object.fromEntries(new URLSearchParams(q < 0 ? '' : spec.slice(q + 1)))
@@ -107,7 +107,7 @@ function packs(root = ROOT) {
 
   // Open the drive behind `link`. Pinned: a read-only view at exactly that revision,
   // with its hash checked. Not pinned: the live drive.
-  async function open_drive(link, pinned = true) {
+  async function open_drive (link, pinned = true) {
     const ref = reference(link)
     if (!(await store.storage.getAuth(core_crypto.discoveryKey(id_encoding.decode(ref.id))))) throw new Error(`Drive is not available locally: ${ref.id}`)
     const drive = new Hyperdrive(store.session(), ref.id)
@@ -124,7 +124,7 @@ function packs(root = ROOT) {
   // Load the function a generator or entry file exports, reading the code straight
   // from its drive at the pinned revision (or from its local folder); nothing is
   // copied to disk. `code` is the drive's pinned reference.
-  async function load(from) {
+  async function load (from) {
     let drive
     let file
     let code = null
@@ -151,7 +151,7 @@ function packs(root = ROOT) {
   // Make a new named drive from a <specifier>: copy a folder or drive, or run a
   // generator into it. `prepare(drive, code)` runs after that and before the drive
   // is registered; `code` is the generator's pinned drive reference, if any.
-  async function create(name, spec, cwd, { namespace = 'pkg', prepare } = {}) {
+  async function create (name, spec, cwd, { namespace = 'pkg', prepare } = {}) {
     if (registry[name]) throw new Error(`Package already exists: ${name}`)
     const from = await source(spec, cwd)
     const drive = new Hyperdrive(store.namespace(namespace).namespace(name).namespace(uuid()))
@@ -180,7 +180,7 @@ function packs(root = ROOT) {
   }
 
   // Point every package on this drive at its latest saved revision.
-  async function update(drive) {
+  async function update (drive) {
     const link = await drive_link(drive)
     for (const name of list()) if (reference(registry[name]).id === drive.id) registry[name] = link
     await save()
@@ -188,7 +188,7 @@ function packs(root = ROOT) {
   }
 
   // Delete the drive behind `link` and every package name registered for it.
-  async function remove(link) {
+  async function remove (link) {
     const { id } = reference(link)
     const opened = await open_drive(link, false)
     await purge(store, opened.drive)
@@ -197,7 +197,7 @@ function packs(root = ROOT) {
   }
 
   // Copy a package's latest files into a new folder outside managed storage.
-  async function export_to(name, folder, cwd) {
+  async function export_to (name, folder, cwd) {
     if (!registry[name]) throw new Error(`Unknown package: ${name}`)
     const dest = path.resolve(cwd, folder)
     const real = path.join(await fsp.realpath(path.dirname(dest)), path.basename(dest))
@@ -210,12 +210,12 @@ function packs(root = ROOT) {
 
 // Evaluate a module graph read straight from drive with bare module's Loader.
 // Every file goes through the drive. The runtime modules come in as builtins.
-async function run_from(drive, file) {
+async function run_from (drive, file) {
   const protocol = new Module.Protocol({
-    async exists(url) {
+    async exists (url) {
       return (await drive.entry(url.pathname)) !== null
     },
-    async read(url) {
+    async read (url) {
       const data = await drive.get(url.pathname)
       if (!url.pathname.endsWith('.js')) return data
       const source = data.toString()
@@ -229,31 +229,31 @@ async function run_from(drive, file) {
 }
 
 // A dynamic import() would load code around the Loader, so drive code may not use it.
-function validate_cjs(source, url) {
+function validate_cjs (source, url) {
   const ast = acorn.parse(source, { ecmaVersion: 'latest', sourceType: 'script' })
   walk.simple(ast, {
-    ImportExpression() {
+    ImportExpression () {
       throw new SyntaxError(`Dynamic import is disabled: ${url.href}`)
     }
   })
 }
 
-function reference(link) {
+function reference (link) {
   const m = LINK.exec(link)
   if (!m) throw new Error(`Invalid pinned drive reference: ${link}`)
   return { length: Number(m[1]), fork: Number(m[2]), id: m[3], hash: m[4], file: m[5] || '', options: Object.fromEntries(new URLSearchParams(m[6] || '')) }
 }
 
-async function drive_link(drive) {
+async function drive_link (drive) {
   const hash = await drive.core.treeHash(drive.core.length)
   return `dat://${drive.core.length}.${drive.core.fork}.${drive.id}.${hash.toString('hex')}`
 }
 
 // MirrorDrive copies bytes; the metadata hooks keep empty folders and permissions.
-async function import_folder(drive, folder) {
+async function import_folder (drive, folder) {
   const metadata = new Map()
   const dirs = []
-  async function walk(relative = '') {
+  async function walk (relative = '') {
     for (const item of await fsp.readdir(path.join(folder, relative), { withFileTypes: true })) {
       const key = relative + '/' + item.name
       const stat = await fsp.lstat(path.join(folder, key))
@@ -270,7 +270,7 @@ async function import_folder(drive, folder) {
   for (const key of dirs) await drive.put(key, Buffer.alloc(0), { metadata: { ...metadata.get(key), directory: true } })
 }
 
-async function export_folder(drive, folder) {
+async function export_folder (drive, folder) {
   await fsp.mkdir(folder, { mode: 0o700 })
   try {
     const dirs = []
@@ -295,7 +295,7 @@ async function export_folder(drive, folder) {
 
 // Delete one drive's cores from the shared store, never the store itself. Tied to
 // hypercore-storage's layout, so it refuses to run against a different version.
-async function purge(store, drive) {
+async function purge (store, drive) {
   if (require('hypercore-storage/package.json').version !== '3.2.1') throw new Error('Review purge compatibility before upgrading hypercore-storage')
   await drive.ready()
   const keys = [drive.core.discoveryKey, drive.blobs?.core.discoveryKey].filter(Boolean)
@@ -303,8 +303,9 @@ async function purge(store, drive) {
   for await (const record of store.storage.createCoreStream()) if (keys.some(key => key.equals(record.discoveryKey))) records.push(record)
   await drive.close()
   const tx = store.storage.db.write({ autoDestroy: true })
-  for (const { discoveryKey, core } of records) {
-    tx.tryDelete(storage_keys.store.core(discoveryKey))
+  for (const record of records) {
+    const core = record.core
+    tx.tryDelete(storage_keys.store.core(record.discoveryKey))
     if (core.alias) tx.tryDelete(storage_keys.store.coreByAlias(core.alias))
     tx.tryDeleteRange(storage_keys.core.core(core.corePointer), storage_keys.core.core(core.corePointer + 1))
     tx.tryDeleteRange(storage_keys.core.data(core.dataPointer), storage_keys.core.data(core.dataPointer + 1))
@@ -312,7 +313,7 @@ async function purge(store, drive) {
   await tx.flush()
 }
 
-async function exists(file) {
+async function exists (file) {
   try {
     await fsp.lstat(file)
     return true
@@ -322,7 +323,7 @@ async function exists(file) {
   }
 }
 
-async function read_json(file) {
+async function read_json (file) {
   try {
     return JSON.parse(await fsp.readFile(file, 'utf8'))
   } catch (err) {
@@ -332,7 +333,7 @@ async function read_json(file) {
 }
 
 // Write to a temporary file and rename it, so a crash never leaves half a registry.
-async function write_json(file, data) {
+async function write_json (file, data) {
   const temp = file + '.' + uuid()
   try {
     await fsp.writeFile(temp, JSON.stringify(data, null, 2) + '\n', { mode: 0o600, flag: 'wx' })
@@ -340,10 +341,10 @@ async function write_json(file, data) {
   } finally { await fsp.rm(temp, { force: true }) }
 }
 
-function inside(root, target) {
+function inside (root, target) {
   return target === root || target.startsWith(root + path.sep)
 }
 
-function uuid() {
+function uuid () {
   return crypto.randomBytes(16).toString('hex')
 }

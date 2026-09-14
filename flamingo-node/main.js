@@ -18,8 +18,8 @@ module.exports = async function (drive, { stopped, log }) {
   log('Starting Flamingo in Docker ...')
   await docker.up(app)
   try {
-    const { nodeId } = await initialize_node_wallet(mnemonic)
-    log('Node identity: ' + nodeId)
+    const node = await initialize_node_wallet(mnemonic)
+    log('Node identity: ' + node.nodeId)
     log('Flamingo is running. Stop it with `cli bot <name> --end`.')
     await stopped
   } finally {
@@ -30,7 +30,7 @@ module.exports = async function (drive, { stopped, log }) {
 
 // docker.up returns once the container starts; the backend inside needs a while
 // longer before it accepts connections, so retry until it does.
-async function connect(url) {
+async function connect (url) {
   const until = Date.now() + 3 * 60 * 1000
   while (true) {
     const socket = new ws.Socket(url)
@@ -46,7 +46,7 @@ async function connect(url) {
 }
 
 // One request and its reply over the backend's WebSocket.
-async function initialize_node_wallet(mnemonic) {
+async function initialize_node_wallet (mnemonic) {
   const id = Date.now()
   const socket = await connect('ws://127.0.0.1:8080')
   return new Promise((resolve, reject) => {

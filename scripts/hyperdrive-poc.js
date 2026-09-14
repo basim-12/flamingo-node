@@ -5,16 +5,16 @@ const Hyperdrive = require('hyperdrive')
 const fs = require('bare-fs')
 const fsp = require('bare-fs/promises')
 const path = require('bare-path')
+const process = require('bare-process')
 const crypto = require('bare-crypto')
 const b4a = require('b4a')
 const { Transform } = require('bare-stream')
 const { pipeline } = require('bare-stream/promises')
 
-
 const FORMAT = 'flamingo-hyperdrive-poc/v1'
 
 // Print the available commands and their required safety conditions
-function usage() {
+function usage () {
   console.log(`Flamingo Hyperdrive backup PoC
 
 Usage:
@@ -26,7 +26,7 @@ Stop Bitcoin and Lightning cleanly before backup or restore.`)
 }
 
 // Convert command line arguments into a small options object
-function parseArgs(argv) {
+function parseArgs (argv) {
   const args = { _: [] }
   for (let index = 0; index < argv.length; index++) {
     const value = argv[index]
@@ -37,7 +37,7 @@ function parseArgs(argv) {
 }
 
 // Check whether a file or directory exists without throwing an error
-async function exists(filename) {
+async function exists (filename) {
   try {
     await fsp.access(filename)
     return true
@@ -47,7 +47,7 @@ async function exists(filename) {
 }
 
 // Read bot.json and resolve its data and backup paths
-async function loadConfig(filename = 'bot.json') {
+async function loadConfig (filename = 'bot.json') {
   const configFile = path.resolve(filename)
   const config = JSON.parse(await fsp.readFile(configFile, 'utf8'))
   if (config.format !== FORMAT) throw new Error(`Unsupported bot config: ${config.format}`)
@@ -61,7 +61,7 @@ async function loadConfig(filename = 'bot.json') {
 }
 
 // Refuse a backup unless Bitcoin and Lightning finished their latest shutdown
-async function requireCleanShutdown(dataDir) {
+async function requireCleanShutdown (dataDir) {
   const checks = [
     {
       name: 'Bitcoin Core',
@@ -91,13 +91,13 @@ async function requireCleanShutdown(dataDir) {
 }
 
 // Recognize temporary files that should not be included in a backup
-function runtimeOnly(name) {
+function runtimeOnly (name) {
   const base = path.basename(name)
   return base === '.lock' || base.endsWith('.pid') || base.endsWith('.sock') || base.endsWith('.socket')
 }
 
 // Recursively collect persistent files, directories, and skipped entries
-async function walk(root, relative = '', output = { directories: [], files: [], skipped: [] }) {
+async function walk (root, relative = '', output = { directories: [], files: [], skipped: [] }) {
   const entries = await fsp.readdir(path.join(root, relative), { withFileTypes: true })
   for (const entry of entries) {
     const name = relative ? path.join(relative, entry.name) : entry.name
@@ -120,9 +120,9 @@ async function walk(root, relative = '', output = { directories: [], files: [], 
 }
 
 // Pass file data through a stream while calculating its SHA-256 hash
-function hashStream(hash) {
+function hashStream (hash) {
   return new Transform({
-    transform(chunk, encoding, callback) {
+    transform (chunk, encoding, callback) {
       hash.update(chunk)
       callback(null, chunk)
     }
@@ -130,27 +130,27 @@ function hashStream(hash) {
 }
 
 // Ensure a restored path cannot escape the selected destination directory
-function safeTarget(root, relative) {
+function safeTarget (root, relative) {
   const target = path.resolve(root, relative)
   if (target !== root && !target.startsWith(root + path.sep)) throw new Error(`Unsafe backup path: ${relative}`)
   return target
 }
 
 // Open the Hyperdrive stored in the configured local Corestore directory
-async function openDrive(storeDir) {
+async function openDrive (storeDir) {
   const store = new Corestore(storeDir)
   const drive = new Hyperdrive(store)
   await drive.ready()
   return { store, drive }
 }
 
-// Close the Hyperdrive and its Corestore 
-async function closeDrive({ store, drive }) {
+// Close the Hyperdrive and its Corestore
+async function closeDrive ({ store, drive }) {
   try { await drive.close() } finally { await store.close() }
 }
 
 // Stream stopped node data into Hyperdrive and save its file manifest
-async function backup(config) {
+async function backup (config) {
   if (!(await exists(config.dataDir))) throw new Error(`Node data directory does not exist: ${config.dataDir}`)
   await requireCleanShutdown(config.dataDir)
   if (await exists(config.storeDir) && (await fsp.readdir(config.storeDir)).length) {
@@ -187,7 +187,7 @@ async function backup(config) {
 }
 
 // Load and validate the backup manifest stored inside Hyperdrive
-async function readManifest(drive) {
+async function readManifest (drive) {
   const data = await drive.get('/manifest.json')
   if (!data) throw new Error('Backup manifest is missing')
   const manifest = JSON.parse(b4a.toString(data))
@@ -196,7 +196,7 @@ async function readManifest(drive) {
 }
 
 // Recreate the node data directory from the files stored in Hyperdrive
-async function restore(config, targetName) {
+async function restore (config, targetName) {
   const target = path.resolve(targetName || config.dataDir)
   if (await exists(target) && (await fsp.readdir(target)).length) {
     throw new Error(`Restore target must be empty: ${target}`)
@@ -230,7 +230,7 @@ async function restore(config, targetName) {
 }
 
 // Compare every restored file with the hash recorded during backup
-async function verify(config, targetName) {
+async function verify (config, targetName) {
   const target = path.resolve(targetName || config.dataDir)
   const opened = await openDrive(config.storeDir)
   try {
@@ -249,8 +249,7 @@ async function verify(config, targetName) {
   }
 }
 
-
-async function main(argv = Bare.argv.slice(2)) {
+async function main (argv = process.argv.slice(2)) {
   const args = parseArgs(argv)
   const command = args._[0]
   if (!command || command === 'help') return usage()
@@ -264,7 +263,7 @@ async function main(argv = Bare.argv.slice(2)) {
 if (require.main === module) {
   main().catch(error => {
     console.error(error.message)
-    Bare.exitCode = 1
+    process.exitCode = 1
   })
 }
 
