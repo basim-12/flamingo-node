@@ -20,7 +20,6 @@
     "bare-os": "3.9.3",
     "bare-path": "3.1.2",
     "bare-process": "4.5.1",
-    "bare-runtime": "1.31.0",
     "bare-stream": "2.13.4",
     "bare-subprocess": "6.1.0",
     "bare-url": "2.5.4",

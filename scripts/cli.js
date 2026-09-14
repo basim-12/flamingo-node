@@ -10,7 +10,7 @@ async function main () {
   if (cmd.action === 'help') return console.log(usage)
   const service = new Packages()
 
-  // Bare delivers SIGTERM (not SIGINT) to handlers; `fw` translates Ctrl+C to it.
+  // Ctrl+C sends SIGINT and `cli bot <name> --end` sends SIGTERM; both stop a running bot.
   let stopRequested = false
   let onstop = () => { stopRequested = true }
   process.on('SIGTERM', () => onstop())

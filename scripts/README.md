@@ -1,7 +1,12 @@
 # Hyperdrive packages and bots
 
-Examples use `fw`, the repository's CLI name. From the repository, use
-`npm run cli -- pkg ...` or `npm run cli -- bot ...`.
+A generic CLI for named drives (`pkg`) and the bots that run from them (`bot`),
+independent of Flamingo's own `fw` command. Run it with Bare from the
+flamingo-node folder; the examples below write it as `cli`:
+
+```sh
+alias cli="npx bare scripts/cli.js"
+```
 
 ## Drive references
 
@@ -19,17 +24,17 @@ drives and file data must already be available locally in this iteration.
 
 | Command | Action and behavior |
 | --- | --- |
-| `fw pkg +<name> <specifier>` | Create a named drive from contents or a generator. Reject existing names and missing sources. |
-| `fw pkg <name> --import=<specifier>` | Same as creation above. |
-| `fw pkg <name>` / `fw pkg <name> --see` | Show the package name and drive reference. |
-| `fw pkg` | List named drives. |
-| `fw pkg --help` / `fw bot --help` | Print usage. |
-| `fw pkg <name> <dirpath>` / `fw pkg <name> --export=<dirpath>` | Export the latest stored contents to a new folder. Reject an existing destination; its parent must exist. Export files, not drive history or identity. |
-| `fw pkg -<name>` | Remove the registration and purge local drive data. Preserve import/export folders and unrelated drives. Refuse if the package belongs to a running bot. |
+| `cli pkg +<name> <specifier>` | Create a named drive from contents or a generator. Reject existing names and missing sources. |
+| `cli pkg <name> --import=<specifier>` | Same as creation above. |
+| `cli pkg <name>` / `cli pkg <name> --see` | Show the package name and drive reference. |
+| `cli pkg` | List named drives. |
+| `cli pkg --help` / `cli bot --help` | Print usage. |
+| `cli pkg <name> <dirpath>` / `cli pkg <name> --export=<dirpath>` | Export the latest stored contents to a new folder. Reject an existing destination; its parent must exist. Export files, not drive history or identity. |
+| `cli pkg -<name>` | Remove the registration and purge local drive data. Preserve import/export folders and unrelated drives. Refuse if the package belongs to a running bot. |
 
 ## Specifiers
 
-`fw pkg +<name> <specifier>` and `fw bot +<name> <specifier>` take the same
+`cli pkg +<name> <specifier>` and `cli bot +<name> <specifier>` take the same
 `<specifier>`:
 
 | Specifier | Action |
@@ -47,7 +52,7 @@ Folder copies preserve files, empty directories and permission bits; symlinks an
 special files are rejected. Named packages, drive ids and `dat://` revisions must
 already be available locally. A known package name or the id of a registered
 drive resolves to its recorded revision; an unregistered drive id resolves to its
-latest local revision. Either way `fw` stores the full
+latest local revision. Either way `cli` stores the full
 `dat://length.fork.id.hash` reference.
 
 ## Generators
@@ -70,7 +75,7 @@ A generator only writes the app's own data. When a bot is created from a
 generator, the CLI adds `bot.json` itself (see Bots).
 
 ```sh
-fw pkg +config "flamingo-node/generate?ask=no"
+cli pkg +config "flamingo-node/generate?ask=no"
 ```
 
 ## Bots
@@ -104,32 +109,32 @@ module.exports = async function (drive, { stopped, log }) {
 `log(line)` prints a line for the operator. An entry may instead return a cleanup
 function, which the CLI awaits after `stopped`.
 
-`fw bot <name> --run` runs the entry in the foreground and holds the shared
-Corestore for as long as it runs. `fw bot` / `fw bot <name> --see` and
-`fw bot <name> --end` do not open the store, so they work from another terminal
+`cli bot <name> --run` runs the entry in the foreground and holds the shared
+Corestore for as long as it runs. `cli bot` / `cli bot <name> --see` and
+`cli bot <name> --end` do not open the store, so they work from another terminal
 while a bot runs: `--end` sends the running process a normal termination signal
-(the same as Ctrl+C). Package changes (`fw pkg +`/`-`, `fw bot +`/`-`) need the
+(the same as Ctrl+C). Package changes (`cli pkg +`/`-`, `cli bot +`/`-`) need the
 store and are refused with a clear message while a bot is running. A bot writes
 `~/.flamingo/run/<name>.pid` while active. No background service is installed.
 
 | Command | Action and behavior |
 | --- | --- |
-| `fw bot +<name> <specifier>` | Register a stopped bot. `<specifier>` must name a drive — package name, drive id or `dat://` reference — because a bot pins its code to a drive; local paths are refused. A drive on its own is used as the configuration drive directly (it must already contain a valid `bot.json`). `<drive>/generate` runs that drive's generator into a fresh bot drive, the CLI writes its `bot.json`, and it is registered as a package under `<name>` too. Reject an existing bot name, a package-name conflict, or a configuration drive already registered to another bot (checked by drive id). |
-| `fw bot <name>` / `fw bot <name> --see` | Show its drive reference, package name if available, and running/stopped status. |
-| `fw bot` | List registered bots. |
-| `fw bot <name> --run` | Verify and launch the entry from bot.json in the foreground. Reuse existing bot data and identity. A bot is a singleton: refuse if it, or another bot on the same drive, is already running. |
-| `fw bot <name> --end` | Stop the bot cleanly and preserve its data. |
-| `fw bot -<name>` | Refuse while running. Otherwise remove the bot and purge its associated bot package/data, preserving the code package and unrelated data. |
+| `cli bot +<name> <specifier>` | Register a stopped bot. `<specifier>` must name a drive — package name, drive id or `dat://` reference — because a bot pins its code to a drive; local paths are refused. A drive on its own is used as the configuration drive directly (it must already contain a valid `bot.json`). `<drive>/generate` runs that drive's generator into a fresh bot drive, the CLI writes its `bot.json`, and it is registered as a package under `<name>` too. Reject an existing bot name, a package-name conflict, or a configuration drive already registered to another bot (checked by drive id). |
+| `cli bot <name>` / `cli bot <name> --see` | Show its drive reference, package name if available, and running/stopped status. |
+| `cli bot` | List registered bots. |
+| `cli bot <name> --run` | Verify and launch the entry from bot.json in the foreground. Reuse existing bot data and identity. A bot is a singleton: refuse if it, or another bot on the same drive, is already running. |
+| `cli bot <name> --end` | Stop the bot cleanly and preserve its data. |
+| `cli bot -<name>` | Refuse while running. Otherwise remove the bot and purge its associated bot package/data, preserving the code package and unrelated data. |
 
 Generator shortcut and lifecycle:
 
 ```sh
-fw bot +demo "flamingo-node/generate?ask=no"
-fw bot demo --see
-fw bot demo --run
+cli bot +demo "flamingo-node/generate?ask=no"
+cli bot demo --see
+cli bot demo --run
 # From another terminal while the bot is running:
-fw bot demo --end
-fw bot -demo
+cli bot demo --end
+cli bot -demo
 ```
 
 ## Flamingo generator
@@ -137,9 +142,9 @@ fw bot -demo
 Import the supplied code package before using its generator:
 
 ```sh
-fw pkg +flamingo-node ./flamingo-node
-fw bot +demo "flamingo-node/generate?ask=no"
-fw bot demo --run
+cli pkg +flamingo-node ./flamingo-node
+cli bot +demo "flamingo-node/generate?ask=no"
+cli bot demo --run
 ```
 
 The code package also carries `Dockerfile` and `docker-compose.json`, copied from
@@ -152,7 +157,7 @@ The generator writes `wallet.json`: a fresh 12-word BIP39 mnemonic, made with
 separate identities. The CLI then adds `bot.json`, pointing at this package's
 pinned `main.js`.
 
-On `fw bot <name> --run` the entry reads `wallet.json` and stops with an error if
+On `cli bot <name> --run` the entry reads `wallet.json` and stops with an error if
 the bot drive has none. It then builds the image from the drive's `Dockerfile` and
 starts the container as the drive's `docker-compose.json` describes, calling
 `docker` directly from Bare (`docker.js`). Once the backend accepts connections, it

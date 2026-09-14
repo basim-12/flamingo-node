@@ -22,13 +22,13 @@ const inside = (root, target) => target === root || target.startsWith(root + pat
 const RUN = 'run' // per-bot pidfiles live at ~/.flamingo/run/<name>.pid
 const alivePid = pid => { try { process.kill(pid, 0); return true } catch (e) { return e.code === 'EPERM' } }
 const usage = `Usage:
-  fw pkg +<name> <specifier> | fw pkg <name> --import=<specifier>
-  fw pkg <name> [--see] | fw pkg
-  fw pkg <name> <dirpath> | fw pkg <name> --export=<dirpath>
-  fw pkg -<name>
-  fw bot +<name> <specifier>
-  fw bot <name> [--see|--run|--end] | fw bot
-  fw bot -<name>`
+  cli pkg +<name> <specifier> | cli pkg <name> --import=<specifier>
+  cli pkg <name> [--see] | cli pkg
+  cli pkg <name> <dirpath> | cli pkg <name> --export=<dirpath>
+  cli pkg -<name>
+  cli bot +<name> <specifier>
+  cli bot <name> [--see|--run|--end] | cli bot
+  cli bot -<name>`
 
 // Normalize aliases before accessing storage.
 function parse (args) {
@@ -163,7 +163,7 @@ class Packages {
     try {
       await this.store.ready()
     } catch (e) {
-      if (/could not be locked/i.test(e.message)) throw new Error('A Flamingo bot is running; stop it with `fw bot <name> --end` before changing packages')
+      if (/could not be locked/i.test(e.message)) throw new Error('A Flamingo bot is running; stop it with `cli bot <name> --end` before changing packages')
       throw e
     }
     let changed = false
