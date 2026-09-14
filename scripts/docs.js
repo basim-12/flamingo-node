@@ -14,6 +14,7 @@ const path = require('bare-path')
 const process = require('bare-process')
 const { spawn } = require('bare-subprocess')
 const { validateMnemonic } = require('bip39-mnemonic')
+const packs = require('./packs')
 
 const repo = path.join(__dirname, '..')
 const code_folder = path.join(repo, 'flamingo-node')
@@ -243,6 +244,21 @@ test('pkg -<name> deletes a package', async t => {
   t.is((await cli('pkg', '-by-name')).out, 'Deleted: by-name')
   t.is((await cli('pkg', 'by-name')).code, 1)
   t.is((await cli('pkg', '+by-name', 'flamingo-node')).code, 0, 'name is free again')
+})
+
+// The pkg commands are a thin layer over the packs module (packs/README.md), which
+// works on its own. Here is the same import, export and delete, called as functions.
+test('packs module: package operations as plain functions', async t => {
+  const pkgs = packs(path.join(home, 'packs-api'))
+  await pkgs.open()
+  const link = await pkgs.create('code', './flamingo-node', repo)
+  t.is(pkgs.get('code'), link, 'registered')
+  t.alike(pkgs.list(), ['code'])
+  const folder = await pkgs.export_to('code', path.join(home, 'packs-api-export'), repo)
+  t.alike(files_of(folder), files_of(code_folder), 'exported')
+  await pkgs.remove(link)
+  t.alike(pkgs.list(), [], 'removed')
+  await pkgs.close()
 })
 
 unhook('remove the throwaway home folder', () => {

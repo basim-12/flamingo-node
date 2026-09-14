@@ -22,6 +22,9 @@ drives and file data must already be available locally in this iteration.
 
 ## Packages
 
+The `pkg` commands are a thin layer over the `packs` module; its API is in
+[packs/README.md](packs/README.md).
+
 | Command | Action and behavior |
 | --- | --- |
 | `cli pkg +<name> <specifier>` | Create a named drive from contents or a generator. Reject existing names and missing sources. |

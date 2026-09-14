@@ -36,7 +36,7 @@ async function main () {
       console.log(result)
     }
   } finally {
-    if (service.store) await service.close()
+    await service.close()
   }
 }
 

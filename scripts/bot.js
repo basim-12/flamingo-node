@@ -1,17 +1,22 @@
 const path = require('bare-path')
 const fsp = require('bare-fs/promises')
 const process = require('bare-process')
-const { reference, driveLink, RUN } = require('./pkg')
+const { reference, drive_link } = require('./packs')
+const { RUN } = require('./pkg')
 
 const pidPath = (service, name) => path.join(service.root, RUN, name + '.pid')
 
 // Keep the bot and every name for its mutable drive on the latest saved revision.
 async function refresh (service, drive) {
-  const link = await driveLink(drive)
-  for (const registry of [service.pkgs, service.bots]) {
-    for (const name of Object.keys(registry)) if (reference(registry[name]).id === drive.id) registry[name] = link
-  }
+  const link = await service.packs.update(drive)
+  for (const name of Object.keys(service.bots)) if (reference(service.bots[name]).id === drive.id) service.bots[name] = link
   await service.save()
+}
+
+// The CLI, not the generator, records what a bot runs: the generator's drive at its
+// pinned revision, and that drive's main.js.
+function write_bot_json (drive, code) {
+  return drive.put('/bot.json', Buffer.from(JSON.stringify({ entry: code + '/main.js' }, null, 2)))
 }
 
 async function config (drive) {
@@ -25,12 +30,12 @@ async function config (drive) {
 async function start (service, name, log) {
   // A bot is a singleton: refuse if it, or another bot on the same drive, runs.
   if (service.busy(service.bots[name])) throw new Error('This bot is already running')
-  const opened = await service.openDrive(service.bots[name], false)
+  const opened = await service.packs.open_drive(service.bots[name], false)
   let entry
   try {
     if (!opened.drive.writable) throw new Error('The bot drive is not writable on this device')
     const settings = await config(opened.drive)
-    entry = await service.load({ link: settings.entry, ...reference(settings.entry) })
+    entry = await service.packs.load({ link: settings.entry, ...reference(settings.entry) })
   } catch (e) { await opened.close(); throw e }
 
   let stop
@@ -44,7 +49,7 @@ async function start (service, name, log) {
 
   await fsp.mkdir(path.dirname(pidPath(service, name)), { recursive: true, mode: 0o700 })
   await fsp.writeFile(pidPath(service, name), JSON.stringify({ pid: process.pid, started: Date.now() }) + '\n', { mode: 0o600 })
-  log(service.info('bot', name))
+  log(service.info(name))
 
   run.done = (async () => {
     try {
@@ -59,7 +64,7 @@ async function start (service, name, log) {
         service.running.delete(name)
       }
     }
-    return service.info('bot', name)
+    return service.info(name)
   })()
   return { done: run.done, stop }
 }
@@ -79,19 +84,19 @@ async function command (service, cmd, cwd, log) {
   const { name, action } = cmd
   if (action === 'create') {
     if (service.bots[name]) throw new Error(`Bot already exists: ${name}`)
-    const source = await service.source(cmd.source, cwd)
+    const source = await service.packs.source(cmd.source, cwd)
     if (source.local) throw new Error('A bot needs a drive, not a local path: pass a package name, drive id or dat:// reference')
     const generated = !!source.file
-    if (generated && service.pkgs[name]) throw new Error(`Package already exists: ${name}`)
+    if (generated && service.packs.get(name)) throw new Error(`Package already exists: ${name}`)
     let link
     let created = false
     try {
-      if (generated) { link = await service.create(name, cmd.source, cwd, 'bot'); created = true } else link = source.link
-      const opened = await service.openDrive(link, false)
+      if (generated) { link = await service.packs.create(name, cmd.source, cwd, { namespace: 'bot', prepare: write_bot_json }); created = true } else link = source.link
+      const opened = await service.packs.open_drive(link, false)
       try {
         await config(opened.drive)
         if (!opened.drive.writable) throw new Error('The bot drive is not writable on this device')
-        link = await driveLink(opened.drive)
+        link = await drive_link(opened.drive)
       } finally { await opened.close() }
       // One configuration drive belongs to at most one bot: sharing it would mean
       // two bots running the same identity.
@@ -100,17 +105,17 @@ async function command (service, cmd, cwd, log) {
       if (clash) throw new Error(`That configuration drive is already used by bot: ${clash}`)
       service.bots[name] = link
       await service.save()
-      return service.info('bot', name)
+      return service.info(name)
     } catch (e) {
       delete service.bots[name]
-      if (created && service.pkgs[name]) await service.remove(service.pkgs[name])
+      if (created && service.packs.get(name)) await service.remove(service.packs.get(name))
       throw e
     }
   }
   if (!service.bots[name]) throw new Error(`Unknown bot: ${name}`)
-  if (action === 'see') return service.info('bot', name)
+  if (action === 'see') return service.info(name)
   if (action === 'run') return start(service, name, log)
-  if (action === 'end') { await end(service, name); return service.info('bot', name) }
+  if (action === 'end') { await end(service, name); return service.info(name) }
   if (action === 'delete') { await service.remove(service.bots[name]); return `Deleted: ${name}` }
   throw new Error('Unsupported bot command')
 }
