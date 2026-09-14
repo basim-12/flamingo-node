@@ -70,10 +70,14 @@ function read_json (file) {
 
 const unhook = hook('use a throwaway home folder')
 
-test('pkg --help prints the usage', async t => {
+// The help names the commands and says what a <specifier> can be, then points to
+// the README section with the full table. That section has to exist for the link.
+test('pkg --help prints the usage and links the specifier details', async t => {
   const result = await cli('pkg', '--help')
   t.is(result.code, 0)
   t.ok(result.out.includes('cli pkg +<name> <specifier>'), 'lists the commands')
+  t.ok(result.out.includes('Details: scripts/README.md#specifiers'), 'links the details')
+  t.ok(fs.readFileSync(path.join(repo, 'scripts', 'README.md'), 'utf8').includes('\n## Specifiers\n'), 'the linked section exists')
 })
 
 // This CLI is generic and runs on its own under Bare (`bare scripts/cli.js`).

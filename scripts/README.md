@@ -41,8 +41,9 @@ The `pkg` commands are a thin layer over the `packs` module; its API is in
 
 ## Specifiers
 
-`cli pkg +<name> <specifier>` and `cli bot +<name> <specifier>` take the same
-`<specifier>`:
+`cli pkg +<name> <specifier>` takes any of these. `cli bot +<name> <specifier>`
+takes only the drive forms (not a local folder or file), because a bot pins its
+code to a drive.
 
 | Specifier | Action |
 | --- | --- |

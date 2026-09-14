@@ -11,7 +11,11 @@ const usage = `Usage:
   cli pkg -<name>
   cli bot +<name> <specifier>
   cli bot <name> [--see|--run|--end] | cli bot
-  cli bot -<name>`
+  cli bot -<name>
+
+<specifier> is a local folder or file, a package name, a drive id or a dat://
+reference; add /<file> to run a generator from a drive.
+Details: scripts/README.md#specifiers`
 // These never open the shared store, so they work while a bot is running.
 const READONLY = new Set(['list', 'see', 'end'])
 
