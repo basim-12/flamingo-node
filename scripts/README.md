@@ -142,6 +142,11 @@ fw bot +demo "flamingo-node/generate?ask=no"
 fw bot demo --run
 ```
 
+The code package also carries `Dockerfile` and `docker-compose.json`, copied from
+`flamingo-docker`, so the drive holds the Docker setup needed to build and start
+the node. They are copies and can drift from `flamingo-docker`. The base image and
+`env.docker.json` are not included.
+
 The generator writes `wallet.json`: a fresh 12-word BIP39 mnemonic, made with
 `bip39-mnemonic`. Each generated bot drive gets its own, so separate bots have
 separate identities. The CLI then adds `bot.json`, pointing at this package's

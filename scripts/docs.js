@@ -95,6 +95,14 @@ test('pkg <name> <folder> exports the files', async t => {
   t.is((await fw('pkg', 'flamingo-node', folder)).code, 1, 'existing folder refused')
 })
 
+// The flamingo drive carries its own Docker setup, so whoever gets the drive also
+// gets the Dockerfile and compose file needed to build and start the node.
+test('the flamingo code drive includes its Docker files', async t => {
+  const files = files_of(await export_pkg('flamingo-node'))
+  t.ok('Dockerfile' in files, 'Dockerfile')
+  t.ok('docker-compose.json' in files, 'docker-compose.json')
+})
+
 // The same drive can be named three ways: package name, full dat:// reference, or
 // drive id. Copying through any of them gives a new drive with the same files.
 test('copy specifiers: package name, dat:// reference, drive id', async t => {
