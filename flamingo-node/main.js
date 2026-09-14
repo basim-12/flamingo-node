@@ -1,39 +1,34 @@
-const process = require('bare-process')
+const fs = require('bare-fs')
 const path = require('bare-path')
-const { spawn } = require('bare-subprocess')
+const process = require('bare-process')
 const ws = require('bare-ws')
+const docker = require('./docker')
 
-// Start Flamingo with the existing Docker CLI (`fw up` / `fw up --shutdown`) and
-// bind node4 to this bot's identity from wallet.json.
+// Start Flamingo in Docker from this drive's Docker files and bind node4 to this
+// bot's identity from wallet.json.
 module.exports = async function (drive, { stopped, log }) {
   const wallet = await drive.get('/wallet.json')
   if (!wallet) throw new Error('This bot has no wallet.json')
   const { mnemonic } = JSON.parse(wallet)
 
-  await fw('up')
+  // The backend isn't in the drive yet; it runs from the local flamingo-node folder.
+  const app = process.cwd()
+  if (!fs.existsSync(path.join(app, 'lib', 'cli.js'))) throw new Error('Run this bot from the flamingo-node folder')
+
+  log('Starting Flamingo in Docker ...')
+  await docker.up(app)
   try {
     const { nodeId } = await initialize_node_wallet(mnemonic)
     log('Node identity: ' + nodeId)
-    log('Flamingo is running via Docker. Stop it with `fw bot <name> --end` or Ctrl+C.')
+    log('Flamingo is running. Stop it with `fw bot <name> --end` or Ctrl+C.')
     await stopped
   } finally {
-    await fw('up', '--shutdown')
+    log('Stopping Flamingo ...')
+    await docker.down()
   }
 }
 
-function fw (...args) {
-  const cli = process.env.FLAMINGO_CLI
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.env.FLAMINGO_NODE, [cli, ...args], {
-      cwd: path.dirname(path.dirname(cli)),
-      stdio: 'inherit',
-      env: { ...process.env, FLAMINGO_BOT: '1' }
-    })
-    child.once('exit', code => code === 0 ? resolve() : reject(new Error(`fw ${args.join(' ')} failed`)))
-  })
-}
-
-// `fw up` returns once the container starts; the backend inside needs a while
+// docker.up returns once the container starts; the backend inside needs a while
 // longer before it accepts connections, so retry until it does.
 async function connect (url) {
   const until = Date.now() + 3 * 60 * 1000

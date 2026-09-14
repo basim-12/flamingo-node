@@ -153,12 +153,19 @@ separate identities. The CLI then adds `bot.json`, pointing at this package's
 pinned `main.js`.
 
 On `fw bot <name> --run` the entry reads `wallet.json` and stops with an error if
-the bot drive has none. It then starts the existing Docker flow (`fw up`) and sends
-the existing `initialize_node_wallet` WebSocket API one `recover` request with the
-stored mnemonic (using `bare-ws`), so node4 always comes up with this bot's identity.
-Restarting the same bot reuses the same mnemonic. On stop it runs
-`fw up --shutdown`. Only one Flamingo Docker instance can run at a time; startup
-refuses an already-running instance.
+the bot drive has none. It then builds the image from the drive's `Dockerfile` and
+starts the container as the drive's `docker-compose.json` describes, calling
+`docker` directly from Bare (`docker.js`). Once the backend accepts connections, it
+sends the existing `initialize_node_wallet` WebSocket API one `recover` request with
+the stored mnemonic (using `bare-ws`), so node4 always comes up with this bot's
+identity. Restarting the same bot reuses the same mnemonic. On stop it shuts the
+lightning nodes and bitcoind down cleanly and removes the container. Only one
+Flamingo Docker instance can run at a time; startup refuses an already-running
+instance.
+
+The backend itself isn't in the drive yet: the container runs it from the local
+`flamingo-node` folder, so run bots from that folder. `env.docker.json` comes from
+`flamingo-docker`. Docker has to be installed on the machine.
 
 The adapter uses the installed repository's startup and Docker data folder, so
 per-bot on-chain / channel *data* is not preserved between runs yet — only the

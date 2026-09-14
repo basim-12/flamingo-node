@@ -22,9 +22,13 @@ let export_count = 0
 let code_link = ''
 
 function fw (...args) {
+  return fw_in(repo, ...args)
+}
+
+function fw_in (cwd, ...args) {
   return new Promise(resolve => {
     const child = spawn('node', [path.join(repo, 'lib', 'cli.js'), ...args], {
-      cwd: repo,
+      cwd,
       env: { ...process.env, HOME: home },
       stdio: ['ignore', 'pipe', 'pipe']
     })
@@ -189,6 +193,15 @@ test('bot <name> --run stops when the bot has no wallet.json', async t => {
   t.is(result.code, 1)
   t.ok(result.err.includes('This bot has no wallet.json'), 'says why')
   t.ok((await fw('bot', 'carol')).out.includes('Status: stopped'), 'not left running')
+})
+
+// The flamingo backend isn't in the drive yet; Docker runs it from the local
+// flamingo-node folder. So a bot started anywhere else stops with an error
+// before anything touches Docker.
+test('bot <name> --run must start from the flamingo-node folder', async t => {
+  const result = await fw_in(home, 'bot', 'alice', '--run')
+  t.is(result.code, 1)
+  t.ok(result.err.includes('Run this bot from the flamingo-node folder'), 'says why')
 })
 
 // Two bots on one drive would share one wallet and one data folder, so a
