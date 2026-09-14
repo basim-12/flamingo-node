@@ -15,6 +15,7 @@ const process = require('bare-process')
 const { spawn } = require('bare-subprocess')
 const { validateMnemonic } = require('bip39-mnemonic')
 const packs = require('./packs')
+const tasks = require('./tasks')
 
 const repo = path.join(__dirname, '..')
 const code_folder = path.join(repo, 'flamingo-node')
@@ -258,6 +259,39 @@ test('packs module: package operations as plain functions', async t => {
   t.alike(files_of(folder), files_of(code_folder), 'exported')
   await pkgs.remove(link)
   t.alike(pkgs.list(), [], 'removed')
+  await pkgs.close()
+})
+
+// The bot commands are a thin layer over the tasks module (tasks/README.md), built
+// on packs. A task runs in-process: start it, it saves data to its drive, stop it,
+// and both the task and its package now point at the revision with that data.
+test('tasks module: start a task, let it save, stop it', async t => {
+  const code = path.join(home, 'tasks-api-code')
+  fs.mkdirSync(code)
+  fs.writeFileSync(path.join(code, 'generate.js'), 'module.exports = async function () {}\n')
+  fs.writeFileSync(path.join(code, 'main.js'), [
+    'module.exports = async function (drive, { stopped }) {',
+    "  await drive.put('/hello.txt', Buffer.from('saved while running'))",
+    '  await stopped',
+    '}'
+  ].join('\n'))
+  const pkgs = packs(path.join(home, 'tasks-api'))
+  const bots = tasks(pkgs)
+  await pkgs.open()
+  await bots.registries()
+  await pkgs.create('code', code, repo)
+  const created = await bots.create('hello', 'code/generate', repo)
+
+  await bots.start('hello', () => {})
+  t.ok(bots.info('hello').includes('Status: running'), 'running')
+  await bots.end('hello')
+  t.ok(bots.info('hello').includes('Status: stopped'), 'stopped')
+
+  t.not(bots.get('hello'), created, 'moved to a newer revision')
+  t.is(pkgs.get('hello'), bots.get('hello'), 'package moved with it')
+  const folder = await pkgs.export_to('hello', path.join(home, 'tasks-api-export'), repo)
+  t.is(fs.readFileSync(path.join(folder, 'hello.txt'), 'utf8'), 'saved while running')
+  await bots.close()
   await pkgs.close()
 })
 

@@ -83,6 +83,9 @@ cli pkg +config "flamingo-node/generate?ask=no"
 
 ## Bots
 
+The `bot` commands are a thin layer over the `tasks` module, which is built on
+`packs`; its API is in [tasks/README.md](tasks/README.md).
+
 The code drive contains the application. One bot drive holds both configuration
 and generated data; each application chooses its own folder structure.
 
