@@ -260,7 +260,7 @@ class Packages {
       const url = pathToFileURL(file)
       // Generators and entries run against this CLI's runtime; expose a small fixed
       // set of modules. Reproducible per-package dependency installs are deferred.
-      const runtime = ['bare-process', 'bare-path', 'bare-fs', 'bare-os', 'bare-crypto', 'bare-subprocess', 'bare-url', 'bip39-mnemonic']
+      const runtime = ['bare-process', 'bare-path', 'bare-fs', 'bare-os', 'bare-crypto', 'bare-subprocess', 'bare-url', 'bip39-mnemonic', 'bare-ws']
       const imports = Object.fromEntries(runtime.flatMap(name => {
         try { return [[name, pathToFileURL(require.resolve(name)).href]] } catch { return [] }
       }))

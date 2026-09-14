@@ -174,6 +174,15 @@ test('bot +<name> <config drive> uses an existing configuration drive', async t 
   t.is(drive_of(result), drive_of(await fw('pkg', 'carol-config')))
 })
 
+// The entry's job is to run the node, not to make an identity. Carol's drive has no
+// wallet.json, so --run stops with an error before anything touches Docker.
+test('bot <name> --run stops when the bot has no wallet.json', async t => {
+  const result = await fw('bot', 'carol', '--run')
+  t.is(result.code, 1)
+  t.ok(result.err.includes('This bot has no wallet.json'), 'says why')
+  t.ok((await fw('bot', 'carol')).out.includes('Status: stopped'), 'not left running')
+})
+
 // Two bots on one drive would share one wallet and one data folder, so a
 // configuration drive belongs to exactly one bot, and it must contain bot.json.
 // A bot must pin its code to a drive, so a local folder or local generator file

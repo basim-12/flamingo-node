@@ -147,9 +147,10 @@ The generator writes `wallet.json`: a fresh 12-word BIP39 mnemonic, made with
 separate identities. The CLI then adds `bot.json`, pointing at this package's
 pinned `main.js`.
 
-On `fw bot <name> --run` the entry starts the existing Docker flow (`fw up`), then
-calls the existing `initialize_node_wallet` WebSocket API with `action: "recover"`
-and the stored mnemonic, so node4 always comes up with this bot's identity.
+On `fw bot <name> --run` the entry reads `wallet.json` and stops with an error if
+the bot drive has none. It then starts the existing Docker flow (`fw up`) and sends
+the existing `initialize_node_wallet` WebSocket API one `recover` request with the
+stored mnemonic (using `bare-ws`), so node4 always comes up with this bot's identity.
 Restarting the same bot reuses the same mnemonic. On stop it runs
 `fw up --shutdown`. Only one Flamingo Docker instance can run at a time; startup
 refuses an already-running instance.
