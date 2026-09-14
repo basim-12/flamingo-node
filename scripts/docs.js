@@ -24,22 +24,35 @@ let export_count = 0
 let code_link = ''
 
 function cli (...args) {
-  return cli_in(repo, ...args)
+  return launch(repo, args).exited
 }
 
 function cli_in (cwd, ...args) {
-  return new Promise(resolve => {
-    const child = spawn(process.execPath, [path.join(repo, 'scripts', 'cli.js'), ...args], {
-      cwd,
-      env: { ...process.env, HOME: home },
-      stdio: ['ignore', 'pipe', 'pipe']
-    })
-    let out = ''
-    let err = ''
-    child.stdout.on('data', data => { out += data })
-    child.stderr.on('data', data => { err += data })
-    child.on('exit', code => resolve({ code, out: out.trim(), err: err.trim() }))
+  return launch(cwd, args).exited
+}
+
+// Start the CLI and hand back both the process and a promise of its output.
+function launch (cwd, args) {
+  const child = spawn(process.execPath, [path.join(repo, 'scripts', 'cli.js'), ...args], {
+    cwd,
+    env: { ...process.env, HOME: home },
+    stdio: ['ignore', 'pipe', 'pipe']
   })
+  let out = ''
+  let err = ''
+  child.stdout.on('data', data => { out += data })
+  child.stderr.on('data', data => { err += data })
+  const exited = new Promise(resolve => child.on('exit', code => resolve({ code, out: out.trim(), err: err.trim() })))
+  return { child, exited }
+}
+
+// Wait up to ten seconds for `check` to come true.
+async function until (check) {
+  for (let i = 0; i < 100; i++) {
+    if (await check()) return true
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+  return false
 }
 
 function drive_of (result) {
@@ -206,9 +219,10 @@ test('bot +<name> <config drive> uses an existing configuration drive', async t 
 })
 
 // The entry's job is to run the node, not to make an identity. Carol's drive has no
-// wallet.json, so --run stops with an error before anything touches Docker.
-test('bot <name> --run stops when the bot has no wallet.json', async t => {
-  const result = await cli('bot', 'carol', '--run')
+// wallet.json, so the bot stops with an error before anything touches Docker.
+// (--attach runs it in this terminal, so the error shows up right here.)
+test('a flamingo bot stops when it has no wallet.json', async t => {
+  const result = await cli('bot', 'carol', '--run', '--attach')
   t.is(result.code, 1)
   t.ok(result.err.includes('This bot has no wallet.json'), 'says why')
   t.ok((await cli('bot', 'carol')).out.includes('Status: stopped'), 'not left running')
@@ -217,10 +231,49 @@ test('bot <name> --run stops when the bot has no wallet.json', async t => {
 // The flamingo backend isn't in the drive yet; Docker runs it from the local
 // flamingo-node folder. So a bot started anywhere else stops with an error
 // before anything touches Docker.
-test('bot <name> --run must start from the flamingo-node folder', async t => {
-  const result = await cli_in(home, 'bot', 'alice', '--run')
+test('a flamingo bot must start from the flamingo-node folder', async t => {
+  const result = await cli_in(home, 'bot', 'alice', '--run', '--attach')
   t.is(result.code, 1)
   t.ok(result.err.includes('Run this bot from the flamingo-node folder'), 'says why')
+})
+
+// --run starts a bot as a background daemon and gives the terminal back; the bot
+// keeps running after this command exits. Its output goes to run/<name>.log.
+// Status shows it running, a second --run is refused, and --end stops it.
+test('bot <name> --run starts it in the background; --end stops it', async t => {
+  const code = path.join(home, 'ticker-code')
+  fs.mkdirSync(code)
+  fs.writeFileSync(path.join(code, 'generate.js'), 'module.exports = async function () {}\n')
+  fs.writeFileSync(path.join(code, 'main.js'), [
+    'module.exports = async function (drive, { stopped, log }) {',
+    "  log('ticker started')",
+    '  await stopped',
+    "  log('ticker stopping')",
+    '}'
+  ].join('\n'))
+  t.is((await cli('pkg', '+ticker-code', code)).code, 0)
+  t.is((await cli('bot', '+ticker', 'ticker-code/generate')).code, 0)
+
+  const started = await cli('bot', 'ticker', '--run')
+  t.is(started.code, 0, started.err)
+  t.ok(started.out.includes('Status: running'), 'returns with the bot running')
+  const output = path.join(home, '.flamingo', 'run', 'ticker.log')
+  t.ok(await until(() => fs.readFileSync(output, 'utf8').includes('ticker started')), 'its output goes to the log')
+  t.ok((await cli('bot', 'ticker')).out.includes('Status: running'), 'still running after --run exited')
+  t.is((await cli('bot', 'ticker', '--run')).err, 'This bot is already running')
+
+  t.ok((await cli('bot', 'ticker', '--end')).out.includes('Status: stopped'), '--end stops it')
+  t.ok(fs.readFileSync(output, 'utf8').includes('ticker stopping'), 'and it shut down cleanly')
+})
+
+// --run --attach runs the bot in this terminal instead, until Ctrl+C (SIGINT).
+test('bot <name> --run --attach runs it in the foreground; Ctrl+C stops it', async t => {
+  const attached = launch(repo, ['bot', 'ticker', '--run', '--attach'])
+  t.ok(await until(async () => (await cli('bot', 'ticker')).out.includes('Status: running')), 'running')
+  attached.child.kill('SIGINT')
+  const result = await attached.exited
+  t.is(result.code, 0)
+  t.ok(result.out.includes('ticker stopping'), 'shut down cleanly')
 })
 
 // Two bots on one drive would share one wallet and one data folder, so a

@@ -1,5 +1,8 @@
 #!/usr/bin/env bare
+const fs = require('bare-fs')
+const path = require('bare-path')
 const process = require('bare-process')
+const { spawn: daemon } = require('bare-daemon')
 const packs = require('./packs')
 const tasks = require('./tasks')
 
@@ -10,14 +13,15 @@ const usage = `Usage:
   cli pkg <name> <dirpath> | cli pkg <name> --export=<dirpath>
   cli pkg -<name>
   cli bot +<name> <specifier>
-  cli bot <name> [--see|--run|--end] | cli bot
+  cli bot <name> [--see|--run|--run --attach|--end] | cli bot
   cli bot -<name>
 
 <specifier> is a local folder or file, a package name, a drive id or a dat://
 reference; add /<file> to run a generator from a drive.
 Details: scripts/README.md#specifiers`
-// These never open the shared store, so they work while a bot is running.
-const READONLY = new Set(['list', 'see', 'end'])
+// These never open the shared store, so they work while a bot is running. `run`
+// only launches the background process, which opens the store itself.
+const READONLY = new Set(['list', 'see', 'end', 'run'])
 
 async function main () {
   const cmd = parse(process.argv.slice(2))
@@ -38,8 +42,9 @@ async function main () {
 
 // Turn the arguments into { kind, action, name, source }, resolving the aliases.
 function parse (args) {
-  const [kind, raw, option, ...extra] = args
-  if (!['pkg', 'bot'].includes(kind) || extra.length) throw new Error(usage)
+  const [kind, raw, option, ...flags] = args
+  const attach = option === '--run' && flags[0] === '--attach'
+  if (!['pkg', 'bot'].includes(kind) || flags.length > (attach ? 1 : 0)) throw new Error(usage)
   if (raw === '--help' || raw === '-h') return { action: 'help' }
   if (!raw) return { kind, action: 'list' }
   const prefix = /^[+-]/.test(raw) ? raw[0] : ''
@@ -49,7 +54,8 @@ function parse (args) {
   if (prefix === '-' && !option) return { kind, name, action: 'delete' }
   if (prefix) throw new Error(usage)
   if (!option || option === '--see') return { kind, name, action: 'see' }
-  if (kind === 'bot' && ['--run', '--end'].includes(option)) return { kind, name, action: option.slice(2) }
+  if (kind === 'bot' && option === '--run') return { kind, name, action: attach ? 'attach' : 'run' }
+  if (kind === 'bot' && option === '--end') return { kind, name, action: 'end' }
   if (kind === 'pkg') {
     if (option.startsWith('--import=') && option.slice(9)) return { kind, name, action: 'create', source: option.slice(9) }
     if (option.startsWith('--export=') && option.slice(9)) return { kind, name, action: 'export', source: option.slice(9) }
@@ -77,13 +83,39 @@ async function command (pkgs, bots, { kind, action, name, source }, cwd) {
     return bots.info(name)
   }
   if (!bots.get(name)) throw new Error(`Unknown bot: ${name}`)
-  if (action === 'run') return bots.start(name, line => console.log(line))
+  if (action === 'run') return background(pkgs, bots, name)
+  if (action === 'attach') return bots.start(name, line => console.log(line))
   if (action === 'end') await bots.end(name)
   if (action === 'delete') {
     await bots.remove(bots.get(name))
     return `Deleted: ${name}`
   }
   return bots.info(name)
+}
+
+// Start a bot as a daemon: this CLI again with --run --attach, in its own session so
+// it outlives this process and the terminal. bare-daemon can't redirect output, so
+// `sh -c 'exec …'` sends it to run/<name>.log and then becomes the bot process.
+// Return once the bot is running; if it dies before that, fail with what it printed.
+async function background (pkgs, bots, name) {
+  if (bots.busy(bots.get(name))) throw new Error('This bot is already running')
+  const output = path.join(pkgs.root, 'run', name + '.log')
+  fs.mkdirSync(path.dirname(output), { recursive: true })
+  const { pid } = daemon('/bin/sh', ['-c', 'exec "$@" > "$0" 2>&1', output, process.execPath, __filename, 'bot', name, '--run', '--attach'])
+  while (!bots.busy(bots.get(name))) {
+    if (!alive(pid)) throw new Error(fs.readFileSync(output, 'utf8').trim())
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+  return bots.info(name) + '\nRunning in the background. Output: ' + output
+}
+
+function alive (pid) {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
 }
 
 // Hold a running bot in this terminal until it finishes. Ctrl+C sends SIGINT and

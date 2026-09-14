@@ -15,6 +15,7 @@
     "b4a": "1.8.1",
     "bare": "1.31.2",
     "bare-crypto": "1.15.3",
+    "bare-daemon": "1.2.4",
     "bare-fs": "4.8.1",
     "bare-module": "6.4.0",
     "bare-os": "3.9.3",

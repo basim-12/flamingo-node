@@ -20,7 +20,7 @@ module.exports = async function (drive, { stopped, log }) {
   try {
     const { nodeId } = await initialize_node_wallet(mnemonic)
     log('Node identity: ' + nodeId)
-    log('Flamingo is running. Stop it with `cli bot <name> --end` or Ctrl+C.')
+    log('Flamingo is running. Stop it with `cli bot <name> --end`.')
     await stopped
   } finally {
     log('Stopping Flamingo ...')
