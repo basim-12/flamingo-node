@@ -86,9 +86,7 @@ function packs(root = ROOT) {
       const real = await fsp.realpath(local)
       const storage = await fsp.realpath(root)
       if (inside(real, storage) || inside(storage, real)) throw new Error('Source must not overlap managed storage')
-      const stat = await fsp.stat(real)
-      if (!stat.isFile() && !stat.isDirectory()) throw new Error('Unsupported source')
-      return { local: real, generator: stat.isFile(), options }
+      return { local: real, generator: (await fsp.stat(real)).isFile(), options }
     }
     const [head, ...parts] = base.split('/')
     const file = parts.length ? '/' + parts.join('/') : ''
@@ -118,14 +116,7 @@ function packs(root = ROOT) {
       if (drive.core.fork !== ref.fork || drive.core.length < ref.length) throw new Error('Referenced drive revision is unavailable')
       if ((await drive.core.treeHash(ref.length)).toString('hex') !== ref.hash) throw new Error('Drive hash mismatch')
       const view = pinned ? drive.checkout(ref.length) : drive
-      if (pinned) {
-        await view.ready()
-        // Check the content is here before copying or loading; don't wait for absent peers.
-        for await (const entry of view.list()) {
-          const blob = entry.value.blob
-          if (blob && !(await drive.blobs.core.has(blob.blockOffset, blob.blockOffset + blob.blockLength))) throw new Error('Referenced file content is unavailable locally')
-        }
-      }
+      await view.ready()
       return { drive, view, ref, close: async () => { if (pinned) await view.close(); await drive.close() } }
     } catch (err) { await drive.close(); throw err }
   }
@@ -150,7 +141,7 @@ function packs(root = ROOT) {
     }
     try {
       if (!(await drive.entry(file)) && await drive.entry(file + '.js')) file += '.js'
-      if (!(await drive.entry(file))) throw new Error(`Generator/entry file not found in the drive: ${from.file || '(root)'}`)
+      if (!(await drive.entry(file))) throw new Error(`Generator/entry file not found in the drive: ${from.file}`)
       const fn = await run_from(drive, file)
       if (typeof fn !== 'function') throw new Error('Entry must export a function')
       return { fn, code }
@@ -226,7 +217,7 @@ async function run_from(drive, file) {
     },
     async read(url) {
       const data = await drive.get(url.pathname)
-      if (!data || !url.pathname.endsWith('.js')) return data
+      if (!url.pathname.endsWith('.js')) return data
       const source = data.toString()
       validate_cjs(source, url)
       return source
@@ -250,18 +241,12 @@ function validate_cjs(source, url) {
 function reference(link) {
   const m = LINK.exec(link)
   if (!m) throw new Error(`Invalid pinned drive reference: ${link}`)
-  const length = Number(m[1])
-  const fork = Number(m[2])
-  if (!Number.isSafeInteger(length) || !Number.isSafeInteger(fork)) throw new Error('Invalid drive revision')
-  return { length, fork, id: m[3], hash: m[4], file: m[5] || '', options: Object.fromEntries(new URLSearchParams(m[6] || '')) }
+  return { length: Number(m[1]), fork: Number(m[2]), id: m[3], hash: m[4], file: m[5] || '', options: Object.fromEntries(new URLSearchParams(m[6] || '')) }
 }
 
 async function drive_link(drive) {
-  const length = drive.core.length
-  const fork = drive.core.fork
-  const hash = await drive.core.treeHash(length)
-  if (drive.core.fork !== fork) return drive_link(drive)
-  return `dat://${length}.${fork}.${drive.id}.${hash.toString('hex')}`
+  const hash = await drive.core.treeHash(drive.core.length)
+  return `dat://${drive.core.length}.${drive.core.fork}.${drive.id}.${hash.toString('hex')}`
 }
 
 // MirrorDrive copies bytes; the metadata hooks keep empty folders and permissions.
@@ -291,18 +276,17 @@ async function export_folder(drive, folder) {
     const dirs = []
     const metadata = new Map()
     for await (const { key, value } of drive.list()) {
-      const dest = path.resolve(folder, '.' + key)
-      if (!key.startsWith('/') || dest === folder || !inside(folder, dest) || value.linkname) throw new Error(`Unsupported drive entry: ${key}`)
       if (value.metadata?.directory) {
+        const dest = path.join(folder, key)
         await fsp.mkdir(dest, { recursive: true })
         dirs.push([dest, value.metadata.mode])
       }
     }
     await new MirrorDrive(drive, new Localdrive(folder, { metadata }), {
-      prune: false, preload: false, filter: key => !dirs.some(([dir]) => dir === path.resolve(folder, '.' + key))
+      prune: false, preload: false, filter: key => !dirs.some(([dir]) => dir === path.join(folder, key))
     }).done()
     for (const [key, meta] of metadata) if (meta?.mode !== undefined) await fsp.chmod(path.join(folder, key), meta.mode)
-    for (const [dir, mode] of dirs.reverse()) await fsp.chmod(dir, mode ?? 0o755)
+    for (const [dir, mode] of dirs.reverse()) await fsp.chmod(dir, mode)
   } catch (err) {
     await fsp.rm(folder, { recursive: true, force: true })
     throw err

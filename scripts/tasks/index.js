@@ -62,34 +62,30 @@ function tasks (pkgs) {
     return list().some(name => reference(registry[name]).id === id && runner(name))
   }
 
-  // Register a task from a <specifier> naming either a drive that already holds
-  // bot.json, or a generator in a drive (<drive>/generate) that fills a fresh drive,
-  // in which case bot.json is written here. One drive belongs to at most one task:
-  // sharing it would mean two bots with one identity.
+  // Register a task from a <specifier>. A generator in a drive (<drive>/generate)
+  // fills a fresh drive and bot.json is written for it. Otherwise the drive must
+  // already hold bot.json, and not belong to another task: sharing one would mean
+  // two bots with one identity.
   async function create (name, spec, cwd) {
     if (registry[name]) throw new Error(`Bot already exists: ${name}`)
     const from = await pkgs.source(spec, cwd)
     if (from.local) throw new Error('A bot needs a drive, not a local path: pass a package name, drive id or dat:// reference')
-    const generated = !!from.file
-    let link = generated ? await pkgs.create(name, spec, cwd, { namespace: 'bot', prepare: write_bot_json }) : from.link
-    try {
-      const opened = await pkgs.open_drive(link, false)
+    let link
+    if (from.file) {
+      link = await pkgs.create(name, spec, cwd, { namespace: 'bot', prepare: write_bot_json })
+    } else {
+      const opened = await pkgs.open_drive(from.link, false)
       try {
         await config(opened.drive)
-        if (!opened.drive.writable) throw new Error('The bot drive is not writable on this device')
         link = await drive_link(opened.drive)
       } finally { await opened.close() }
       const { id } = reference(link)
       const clash = list().find(other => reference(registry[other]).id === id)
       if (clash) throw new Error(`That configuration drive is already used by bot: ${clash}`)
-      registry[name] = link
-      await save()
-      return link
-    } catch (err) {
-      delete registry[name]
-      if (generated) await pkgs.remove(pkgs.get(name))
-      throw err
     }
+    registry[name] = link
+    await save()
+    return link
   }
 
   // Run a task's entry in this process until it is stopped. Returns { done, stop }.
@@ -98,7 +94,6 @@ function tasks (pkgs) {
     const opened = await pkgs.open_drive(registry[name], false)
     let entry
     try {
-      if (!opened.drive.writable) throw new Error('The bot drive is not writable on this device')
       const link = await config(opened.drive)
       entry = await pkgs.load({ link, ...reference(link) })
     } catch (err) {
@@ -184,7 +179,7 @@ function write_bot_json (drive, code) {
 }
 
 async function config (drive) {
-  const data = await drive.get('/bot.json', { wait: false })
+  const data = await drive.get('/bot.json')
   if (!data) throw new Error('Configuration drive must contain bot.json')
   const { entry } = JSON.parse(data)
   if (typeof entry !== 'string' || !reference(entry).file) throw new Error('bot.json.entry must be a pinned drive URL with an entry filepath')
@@ -195,8 +190,8 @@ function alive (pid) {
   try {
     process.kill(pid, 0)
     return true
-  } catch (err) {
-    return err.code === 'EPERM'
+  } catch {
+    return false
   }
 }
 

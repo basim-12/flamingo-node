@@ -60,7 +60,7 @@ reference checks the hash, so a reference can't silently point at other content.
 | Function | What it does |
 | --- | --- |
 | `source(spec, cwd)` | Resolve a `<specifier>` (see `../README.md`) to what it points at: `{ local, generator }` for a local folder or file, or `{ link, file }` for a drive, plus `options` from `?query`. |
-| `open_drive(link, pinned = true)` | Open the drive behind `link`. Pinned: a read-only view at exactly that revision, hash checked, content present locally. Not pinned: the live drive. Returns `{ drive, view, ref, close }`. |
+| `open_drive(link, pinned = true)` | Open the drive behind `link`. Pinned: a read-only view at exactly that revision, hash checked. Not pinned: the live drive. Returns `{ drive, view, ref, close }`. |
 | `load(from)` | Load the function a generator or entry file exports, from a `source()` result. The code is read straight from the drive at its pinned revision (or from its local folder); nothing is copied to disk. Returns `{ fn, code }`, where `code` is the drive's pinned reference. |
 | `create(name, spec, cwd, { namespace, prepare })` | Make a new pack from a `<specifier>`: copy a folder or drive, or run a generator into a fresh drive. `prepare(drive, code)` runs afterwards, before the pack is registered. `code` is the generator's pinned drive reference, or `null`. Returns the new reference. |
 | `update(drive)` | Point every pack on this drive at its latest saved revision. Returns that reference. |

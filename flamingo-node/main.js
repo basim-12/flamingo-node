@@ -30,7 +30,7 @@ module.exports = async function (drive, { stopped, log }) {
 
 // docker.up returns once the container starts; the backend inside needs a while
 // longer before it accepts connections, so retry until it does.
-async function connect (url) {
+async function connect(url) {
   const until = Date.now() + 3 * 60 * 1000
   while (true) {
     const socket = new ws.Socket(url)
@@ -46,14 +46,14 @@ async function connect (url) {
 }
 
 // One request and its reply over the backend's WebSocket.
-async function initialize_node_wallet (mnemonic) {
+async function initialize_node_wallet(mnemonic) {
   const id = Date.now()
   const socket = await connect('ws://127.0.0.1:8080')
   return new Promise((resolve, reject) => {
     socket.on('error', reject)
     socket.on('data', data => {
       const message = JSON.parse(data)
-      if (String(message.head) !== String(['backend', 'flamingo-bot', id])) return
+      if (message.type !== 'error' && String(message.head) !== String(['backend', 'flamingo-bot', id])) return
       socket.end()
       if (message.data.status === 'success') resolve(message.data.data)
       else reject(new Error('initialize_node_wallet failed: ' + message.data.error))
