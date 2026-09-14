@@ -8,6 +8,10 @@ flamingo-node folder; the examples below write it as `cli`:
 alias cli="npx bare scripts/cli.js"
 ```
 
+`cli.js` only reads the command line and calls the two modules it is built on:
+[packs](packs/README.md) for drives and their names, and [tasks](tasks/README.md)
+for bots running from them.
+
 ## Drive references
 
 ```text
