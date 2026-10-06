@@ -272,8 +272,12 @@ test('what a bot saves while running is kept', async t => {
 // is refused.
 test('bot registration is refused when it would clash', async t => {
   const local = 'A bot needs a drive, not a local path: pass a package name, drive id or dat:// reference'
+  const taken = 'That configuration drive is already used by bot: alice'
+  const alice = drive_of(await cli('bot', 'alice'))
   t.is((await cli('bot', '+alice', 'sample/generate?ask=no')).err, 'Bot already exists: alice')
-  t.is((await cli('bot', '+dave', 'alice')).err, 'That configuration drive is already used by bot: alice')
+  t.is((await cli('bot', '+dave', 'alice')).err, taken, 'by package name')
+  t.is((await cli('bot', '+dave', alice)).err, taken, 'by dat:// reference')
+  t.is((await cli('bot', '+dave', parts_of(alice).id)).err, taken, 'by drive id')
   t.is((await cli('bot', '+dave', 'by-link')).err, 'Configuration drive must contain bot.json')
   t.is((await cli('bot', '+dave', sample)).err, local, 'local folder refused')
   t.is((await cli('bot', '+dave', path.join(sample, 'generate.js'))).err, local, 'local generator refused')
