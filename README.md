@@ -115,6 +115,49 @@ Use `fw run <scenario.json>` to initialize a Lightning Network topology from a J
 }
 ```
 
+## Running Flamingo as a bot
+
+The drive and bot CLI in [`scripts/`](scripts/README.md) is generic. `lib/drive` is
+Flamingo's code package for it: a generator, an entry and the Docker files. Import it,
+then create a bot from its generator:
+
+```sh
+cli pkg +flamingo-node ./lib/drive
+cli bot +demo "flamingo-node/generate?ask=no"
+cli bot demo --run
+```
+
+The code package also carries `Dockerfile` and `docker-compose.json`, copied from
+`flamingo-docker`, so the drive holds the Docker setup needed to build and start
+the node. They are copies and can drift from `flamingo-docker`. The base image and
+`env.docker.json` are not included.
+
+The generator writes `wallet.json`: a fresh 12-word BIP39 mnemonic, made with
+`bip39-mnemonic`. Each generated bot drive gets its own, so separate bots have
+separate identities. The CLI then adds `bot.json`, pointing at this package's
+pinned `main.js`.
+
+On `cli bot <name> --run` the entry reads `wallet.json` and stops with an error if
+the bot drive has none. It then builds the image from the drive's `Dockerfile` and
+starts the container as the drive's `docker-compose.json` describes, calling
+`docker` directly from Bare (`docker.js`). Once the backend accepts connections, it
+sends the existing `initialize_node_wallet` WebSocket API one `recover` request with
+the stored mnemonic (using `bare-ws`), so node4 always comes up with this bot's
+identity. Restarting the same bot restores its previous state. On stop it shuts the
+lightning nodes and bitcoind down cleanly and removes the container. Only one
+Flamingo Docker instance can run at a time; startup refuses an already-running
+instance.
+
+The backend itself isn't in the drive yet: the container runs it from this
+repository, so run bots from the repository folder. `env.docker.json` comes from
+`flamingo-docker`. Docker has to be installed on the machine.
+
+The adapter uses the installed repository's startup and Docker data folder, so
+per-bot on-chain / channel *data* is not preserved between runs yet — only the
+node identity. The adapter code is pinned; the installed Docker application is
+not. Reproducible installation of pinned Bitcoin/Lightning versions and peer
+replication remain deferred.
+
 ## Related Repositories
 
 - [flamingo-node](https://github.com/playproject-io/flamingo-node) — Backend: bitcoind, lightningd, WebSocket bridge
