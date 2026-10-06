@@ -62,14 +62,13 @@ test('fw has no pkg or bot commands', async t => {
   t.absent(result.out.includes('pkg'), 'no mention of pkg')
 })
 
-// lib/drive is Flamingo's code package: the generator, the entry, and the Docker
-// setup, so whoever gets the drive can build and start the node from it.
-test('the flamingo drive carries the code and its Docker files', async t => {
+// lib/drive is Flamingo's code package for the bot cli: a generator that makes an
+// identity, and an entry that runs the node with it.
+test('the flamingo drive carries the generator and the entry', async t => {
   const created = await cli('pkg', '+flamingo-node', './lib/drive')
   t.is(created.code, 0, created.err)
   code_link = drive_of(created)
-  t.alike(fs.readdirSync(await export_pkg('flamingo-node')).sort(),
-    ['Dockerfile', 'docker-compose.json', 'docker.js', 'generate.js', 'main.js'])
+  t.alike(fs.readdirSync(await export_pkg('flamingo-node')).sort(), ['generate.js', 'main.js'])
 })
 
 // The generator writes only the app's own data: one fresh 12-word BIP39 phrase.
