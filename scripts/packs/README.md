@@ -42,8 +42,7 @@ reference checks the hash, so a reference can't silently point at other content.
 
 | Function | What it does |
 | --- | --- |
-| `registries()` | Read `pkgs.json` only, without opening the store. Enough for `list`, `get`, `find` and `info`, and works while a running bot holds the store. |
-| `open()` | `registries()`, then open the shared store. Needed for everything that touches drives. |
+| `open()` | Read `pkgs.json`. The shared store opens by itself the first time a drive is touched, so reading names works while a running bot holds its lock. |
 | `close()` | Wait for pending saves and close the store. |
 
 ### Names

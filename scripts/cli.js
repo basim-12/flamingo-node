@@ -19,18 +19,13 @@ const usage = `Usage:
 <specifier> is a local folder or file, a package name, a drive id or a dat://
 reference; add /<file> to run a generator from a drive.
 Details: scripts/README.md#specifiers`
-// These never open the shared store, so they work while a bot is running. `run`
-// only launches the background process, which opens the store itself.
-const READONLY = new Set(['list', 'see', 'end', 'run'])
-
 async function main () {
   const cmd = parse(process.argv.slice(2))
   if (cmd.action === 'help') return console.log(usage)
   const pkgs = packs()
   const bots = tasks(pkgs)
-  if (READONLY.has(cmd.action)) await pkgs.registries()
-  else await pkgs.open()
-  await bots.registries()
+  await pkgs.open()
+  await bots.open()
   try {
     const result = await command(pkgs, bots, cmd, process.cwd())
     console.log(result.done ? await foreground(result) : result)

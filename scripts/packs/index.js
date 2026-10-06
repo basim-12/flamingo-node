@@ -24,30 +24,32 @@ packs.reference = reference
 packs.drive_link = drive_link
 
 function packs (root = ROOT) {
-  let store = null
+  let corestore = null
   let registry = Object.create(null)
   let saving = Promise.resolve()
-  const api = { root, registries, open, close, list, get, find, info, source, open_drive, load, create, update, remove, export_to }
+  const api = { root, open, close, list, get, find, info, source, open_drive, load, create, update, remove, export_to }
   return api
 
-  // Read pkgs.json without opening the store, so inspecting still works while a
-  // running bot holds the store's lock.
-  async function registries () {
+  async function open () {
     await fsp.mkdir(root, { recursive: true, mode: 0o700 })
     registry = Object.assign(Object.create(null), await read_json(path.join(root, 'pkgs.json')))
   }
 
-  async function open () {
-    await registries()
-    store = new Corestore(path.join(root, 'corestore'))
-    await store.ready().catch(err => {
-      throw /could not be locked/i.test(err.message) ? new Error('Drive storage is in use by another process, such as a running bot') : err
-    })
+  // The shared store, opened the first time a drive is touched. Reading names never
+  // opens it, so inspecting works while a running bot holds its lock.
+  async function drives () {
+    if (corestore === null) {
+      corestore = new Corestore(path.join(root, 'corestore'))
+      await corestore.ready().catch(err => {
+        throw /could not be locked/i.test(err.message) ? new Error('Drive storage is in use by another process, such as a running bot') : err
+      })
+    }
+    return corestore
   }
 
   async function close () {
     await saving
-    if (store) await store.close()
+    if (corestore !== null) await corestore.close()
   }
 
   function save () {
@@ -96,6 +98,7 @@ function packs (root = ROOT) {
     if (id_encoding.isValid(head)) {
       const known = Object.values(registry).find(link => reference(link).id === head)
       if (known) return { link: known, file, options }
+      const store = await drives()
       if (await store.storage.getAuth(core_crypto.discoveryKey(id_encoding.decode(head)))) {
         const drive = new Hyperdrive(store.session(), head)
         try {
@@ -111,6 +114,7 @@ function packs (root = ROOT) {
   // with its hash checked. Not pinned: the live drive.
   async function open_drive (link, pinned = true) {
     const ref = reference(link)
+    const store = await drives()
     if (!(await store.storage.getAuth(core_crypto.discoveryKey(id_encoding.decode(ref.id))))) throw new Error(`Drive is not available locally: ${ref.id}`)
     const drive = new Hyperdrive(store.session(), ref.id)
     await drive.ready()
@@ -156,6 +160,7 @@ function packs (root = ROOT) {
   async function create (name, spec, cwd, { namespace = 'pkg', prepare } = {}) {
     if (registry[name]) throw new Error(`Package already exists: ${name}`)
     const from = await source(spec, cwd)
+    const store = await drives()
     const drive = new Hyperdrive(store.namespace(namespace).namespace(name).namespace(uuid()))
     await drive.ready()
     try {
@@ -193,7 +198,7 @@ function packs (root = ROOT) {
   async function remove (link) {
     const { id } = reference(link)
     const opened = await open_drive(link, false)
-    await purge(store, opened.drive)
+    await purge(await drives(), opened.drive)
     for (const name of list()) if (reference(registry[name]).id === id) delete registry[name]
     await save()
   }

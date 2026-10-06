@@ -12,7 +12,7 @@ const tasks = require('./tasks')
 const pkgs = packs()
 const bots = tasks(pkgs)
 await pkgs.open()
-await bots.registries()
+await bots.open()
 await bots.create('alice', 'flamingo-node/generate?ask=no', process.cwd())
 const { done } = await bots.start('alice', console.log)
 // … later, from this process:
@@ -66,7 +66,7 @@ Next to the packs' storage under the same root:
 
 | Function | What it does |
 | --- | --- |
-| `registries()` | Read `bots.json`. Needs no store, so it works while a running task holds it. |
+| `open()` | Read `bots.json`. Needs no store, so it works while a running task holds one. |
 | `close()` | Wait for pending saves. |
 | `list()` | Task names, sorted. |
 | `get(name)` | The task's drive reference, or `undefined`. |

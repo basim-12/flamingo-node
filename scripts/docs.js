@@ -355,7 +355,7 @@ test('tasks module: start a task, let it save, stop it', async t => {
   const pkgs = packs(path.join(home, 'tasks-api'))
   const bots = tasks(pkgs)
   await pkgs.open()
-  await bots.registries()
+  await bots.open()
   await pkgs.create('code', code, repo)
   const created = await bots.create('hello', 'code/generate', repo)
 

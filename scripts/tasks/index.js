@@ -15,11 +15,11 @@ function tasks (pkgs) {
   const running = new Map()
   let registry = Object.create(null)
   let saving = Promise.resolve()
-  const api = { registries, close, list, get, info, busy, create, start, end, remove }
+  const api = { open, close, list, get, info, busy, create, start, end, remove }
   return api
 
-  // Read bots.json. Needs no store, so it works while a running bot holds it.
-  async function registries () {
+  // Read bots.json. Needs no store, so it works while a running bot holds one.
+  async function open () {
     registry = Object.assign(Object.create(null), await read_json(path.join(pkgs.root, 'bots.json')))
   }
 
