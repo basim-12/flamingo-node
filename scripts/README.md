@@ -178,7 +178,7 @@ starts the container as the drive's `docker-compose.json` describes, calling
 `docker` directly from Bare (`docker.js`). Once the backend accepts connections, it
 sends the existing `initialize_node_wallet` WebSocket API one `recover` request with
 the stored mnemonic (using `bare-ws`), so node4 always comes up with this bot's
-identity. Restarting the same bot reuses the same mnemonic. On stop it shuts the
+identity. Restarting the same bot restores its previous state. On stop it shuts the
 lightning nodes and bitcoind down cleanly and removes the container. Only one
 Flamingo Docker instance can run at a time; startup refuses an already-running
 instance.
@@ -197,8 +197,8 @@ replication remain deferred.
 
 ```text
 ~/.flamingo/
-├── pkgs.json       # { "package-name": "dat://...", ... }
-├── bots.json       # { "bot-name": "dat://...", ... }
+├── pkgs.json       # { "<package-name>": "dat://...", ... }
+├── bots.json       # { "<bot-name>": "dat://...", ... }
 ├── corestore/      # Shared persistent drive storage
 └── run/            # <bot-name>.pid while it runs; <bot-name>.log from its last --run
 ```

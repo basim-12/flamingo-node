@@ -5,10 +5,13 @@ some files in it. Packs know nothing about bots or anything that runs; `tasks`
 builds on top of them.
 
 ```js
+const os = require('bare-os')
+const path = require('bare-path')
 const process = require('bare-process')
 const packs = require('./packs')
 
-const pkgs = packs() // root defaults to ~/.flamingo
+const storage_default_path = path.join(os.homedir(), '.flamingo')
+const pkgs = packs(storage_default_path)
 await pkgs.open()
 await pkgs.create('flamingo-node', './lib/drive', process.cwd())
 console.log(pkgs.info('flamingo-node')) // Name: flamingo-node / Drive: dat://…
