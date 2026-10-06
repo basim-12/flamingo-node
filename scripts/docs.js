@@ -18,7 +18,7 @@ const packs = require('./packs')
 const tasks = require('./tasks')
 
 const repo = path.join(__dirname, '..')
-const code_folder = path.join(repo, 'flamingo-node')
+const code_folder = path.join(repo, 'lib', 'drive')
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'flamingo-docs-'))
 let export_count = 0
 let code_link = ''
@@ -109,7 +109,7 @@ test('fw has no pkg or bot commands', async t => {
 // A folder becomes a named drive. The printed reference pins that exact revision,
 // and listing or inspecting the package shows the same reference.
 test('pkg +<name> <folder> imports a folder as a named drive', async t => {
-  const created = await cli('pkg', '+flamingo-node', './flamingo-node')
+  const created = await cli('pkg', '+flamingo-node', './lib/drive')
   t.is(created.code, 0, created.err)
   code_link = drive_of(created)
   t.ok(code_link.startsWith('dat://'), 'prints a dat:// reference')
@@ -119,8 +119,8 @@ test('pkg +<name> <folder> imports a folder as a named drive', async t => {
 
 // Names are how everything else refers to a drive, so they must be unique and simple.
 test('package names are unique and validated', async t => {
-  t.is((await cli('pkg', '+flamingo-node', './flamingo-node')).err, 'Package already exists: flamingo-node')
-  t.is((await cli('pkg', '+bad/name', './flamingo-node')).err, 'Invalid name: use letters, numbers, underscores and hyphens')
+  t.is((await cli('pkg', '+flamingo-node', './lib/drive')).err, 'Package already exists: flamingo-node')
+  t.is((await cli('pkg', '+bad/name', './lib/drive')).err, 'Invalid name: use letters, numbers, underscores and hyphens')
 })
 
 // Export is the way back out: the files come back exactly as they went in.
@@ -292,14 +292,14 @@ test('bot <name> --run --attach runs it in the foreground; Ctrl+C stops it', asy
 // Two bots on one drive would share one wallet and one data folder, so a
 // configuration drive belongs to exactly one bot, and it must contain bot.json.
 // A bot must pin its code to a drive, so a local folder or local generator file
-// is refused. Local paths win over package names, so ./flamingo-node is the folder.
+// is refused. Local paths win over package names, so ./lib/drive is the folder.
 test('bot registration is refused when it would clash', async t => {
   const local = 'A bot needs a drive, not a local path: pass a package name, drive id or dat:// reference'
   t.is((await cli('bot', '+alice', 'flamingo-node/generate?ask=no')).err, 'Bot already exists: alice')
   t.is((await cli('bot', '+dave', 'alice')).err, 'That configuration drive is already used by bot: alice')
   t.is((await cli('bot', '+dave', 'by-link')).err, 'Configuration drive must contain bot.json')
-  t.is((await cli('bot', '+dave', './flamingo-node')).err, local, 'local folder refused')
-  t.is((await cli('bot', '+dave', './flamingo-node/generate.js')).err, local, 'local generator refused')
+  t.is((await cli('bot', '+dave', './lib/drive')).err, local, 'local folder refused')
+  t.is((await cli('bot', '+dave', './lib/drive/generate.js')).err, local, 'local generator refused')
 })
 
 // Deleting a bot removes its own drive, but never the code it was made from.
@@ -322,7 +322,7 @@ test('pkg -<name> deletes a package', async t => {
 test('packs module: package operations as plain functions', async t => {
   const pkgs = packs(path.join(home, 'packs-api'))
   await pkgs.open()
-  const link = await pkgs.create('code', './flamingo-node', repo)
+  const link = await pkgs.create('code', './lib/drive', repo)
   t.is(pkgs.get('code'), link, 'registered')
   t.alike(pkgs.list(), ['code'])
   const folder = await pkgs.export_to('code', path.join(home, 'packs-api-export'), repo)

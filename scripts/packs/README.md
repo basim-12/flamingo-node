@@ -10,7 +10,7 @@ const packs = require('./packs')
 
 const pkgs = packs() // root defaults to ~/.flamingo
 await pkgs.open()
-await pkgs.create('flamingo-node', './flamingo-node', process.cwd())
+await pkgs.create('flamingo-node', './lib/drive', process.cwd())
 console.log(pkgs.info('flamingo-node')) // Name: flamingo-node / Drive: dat://…
 await pkgs.close()
 ```

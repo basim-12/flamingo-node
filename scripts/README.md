@@ -157,7 +157,7 @@ cli bot -demo
 Import the supplied code package before using its generator:
 
 ```sh
-cli pkg +flamingo-node ./flamingo-node
+cli pkg +flamingo-node ./lib/drive
 cli bot +demo "flamingo-node/generate?ask=no"
 cli bot demo --run
 ```
