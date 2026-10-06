@@ -4,6 +4,9 @@
 // behaviour it pins down. Tests run in order and build on each other, so read it
 // top to bottom like a walkthrough. Run with `npm run docs`.
 //
+// Everything here is about the CLI itself, so the code it runs is a throwaway
+// sample made below, never Flamingo's. Flamingo's own tests are in ../docs.js.
+//
 // The CLI keeps everything under ~/.flamingo. The tests point HOME at a throwaway
 // folder, so real packages and bots are never touched.
 
@@ -13,15 +16,32 @@ const os = require('bare-os')
 const path = require('bare-path')
 const process = require('bare-process')
 const { spawn } = require('bare-subprocess')
-const bip39 = require('bip39-mnemonic')
 const packs = require('./packs')
 const tasks = require('./tasks')
 
 const repo = path.join(__dirname, '..')
-const code_folder = path.join(repo, 'lib', 'drive')
-const home = fs.mkdtempSync(path.join(os.tmpdir(), 'flamingo-docs-'))
+const home = fs.mkdtempSync(path.join(os.tmpdir(), 'cli-docs-'))
+const sample = path.join(home, 'sample')
 let export_count = 0
 let code_link = ''
+
+// A code package of our own: a generator that writes config.json, and an entry that
+// saves a file, waits to be stopped, and says so on the way in and out.
+fs.mkdirSync(sample)
+fs.writeFileSync(path.join(sample, 'generate.js'), [
+  'module.exports = async function (drive, options) {',
+  "  await drive.put('/config.json', Buffer.from(JSON.stringify(options)))",
+  '}'
+].join('\n') + '\n')
+fs.writeFileSync(path.join(sample, 'main.js'), [
+  'module.exports = async function (drive, { stopped, log }) {',
+  "  await drive.put('/data.txt', Buffer.from('saved while running'))",
+  "  log('sample started')",
+  '  await stopped',
+  "  log('sample stopping')",
+  '}'
+].join('\n') + '\n')
+fs.writeFileSync(path.join(sample, 'notes.txt'), 'anything else in the folder travels too\n')
 
 function cli (...args) {
   return launch(repo, args).exited
@@ -93,60 +113,39 @@ test('pkg --help prints the usage and links the specifier details', async t => {
   t.ok(fs.readFileSync(path.join(repo, 'scripts', 'README.md'), 'utf8').includes('\n## Specifiers\n'), 'the linked section exists')
 })
 
-// This CLI is generic and runs on its own under Bare (`bare scripts/cli.js`).
-// Flamingo's own `fw` command only runs the Flamingo node; it has no pkg or bot.
-test('fw has no pkg or bot commands', async t => {
-  const result = await new Promise(resolve => {
-    const child = spawn('node', [path.join(repo, 'lib', 'cli.js'), 'pkg'], { stdio: ['ignore', 'pipe', 'ignore'] })
-    let out = ''
-    child.stdout.on('data', data => { out += data })
-    child.on('exit', () => resolve(out))
-  })
-  t.ok(result.startsWith('Usage: fw up'), 'prints fw usage')
-  t.absent(result.includes('pkg'), 'no mention of pkg')
-})
-
 // A folder becomes a named drive. The printed reference pins that exact revision,
 // and listing or inspecting the package shows the same reference.
 test('pkg +<name> <folder> imports a folder as a named drive', async t => {
-  const created = await cli('pkg', '+flamingo-node', './lib/drive')
+  const created = await cli('pkg', '+sample', sample)
   t.is(created.code, 0, created.err)
   code_link = drive_of(created)
   t.ok(code_link.startsWith('dat://'), 'prints a dat:// reference')
   t.is(drive_of(await cli('pkg')), code_link, 'listed')
-  t.is(drive_of(await cli('pkg', 'flamingo-node', '--see')), code_link, 'inspected')
+  t.is(drive_of(await cli('pkg', 'sample', '--see')), code_link, 'inspected')
 })
 
 // Names are how everything else refers to a drive, so they must be unique and simple.
 test('package names are unique and validated', async t => {
-  t.is((await cli('pkg', '+flamingo-node', './lib/drive')).err, 'Package already exists: flamingo-node')
-  t.is((await cli('pkg', '+bad/name', './lib/drive')).err, 'Invalid name: use letters, numbers, underscores and hyphens')
+  t.is((await cli('pkg', '+sample', sample)).err, 'Package already exists: sample')
+  t.is((await cli('pkg', '+bad/name', sample)).err, 'Invalid name: use letters, numbers, underscores and hyphens')
 })
 
-// Export is the way back out: the files come back exactly as they went in.
+// Export is the way back out: every file comes back exactly as it went in.
 // It never overwrites, so exporting into an existing folder is refused.
 test('pkg <name> <folder> exports the files', async t => {
-  const folder = await export_pkg('flamingo-node')
-  t.alike(files_of(folder), files_of(code_folder))
-  t.is((await cli('pkg', 'flamingo-node', folder)).code, 1, 'existing folder refused')
-})
-
-// The flamingo drive carries its own Docker setup, so whoever gets the drive also
-// gets the Dockerfile and compose file needed to build and start the node.
-test('the flamingo code drive includes its Docker files', async t => {
-  const files = files_of(await export_pkg('flamingo-node'))
-  t.ok('Dockerfile' in files, 'Dockerfile')
-  t.ok('docker-compose.json' in files, 'docker-compose.json')
+  const folder = await export_pkg('sample')
+  t.alike(files_of(folder), files_of(sample))
+  t.is((await cli('pkg', 'sample', folder)).code, 1, 'existing folder refused')
 })
 
 // The same drive can be named three ways: package name, full dat:// reference, or
 // drive id. Copying through any of them gives a new drive with the same files.
 test('copy specifiers: package name, dat:// reference, drive id', async t => {
-  const specs = { 'by-name': 'flamingo-node', 'by-link': code_link, 'by-id': parts_of(code_link).id }
+  const specs = { 'by-name': 'sample', 'by-link': code_link, 'by-id': parts_of(code_link).id }
   for (const [name, spec] of Object.entries(specs)) {
     const result = await cli('pkg', '+' + name, spec)
     t.is(result.code, 0, result.err)
-    t.alike(files_of(await export_pkg(name)), files_of(code_folder), name)
+    t.alike(files_of(await export_pkg(name)), files_of(sample), name)
   }
 })
 
@@ -163,24 +162,28 @@ test('a dat:// reference must match exactly', async t => {
 })
 
 // A path says so: it starts with ./, ../ or /. A bare name is a package or a drive id,
-// never a folder, so the forms can't overlap. `lib` is a folder here, but not a package.
+// never a folder, so the forms can't overlap. `plain` here is a folder, not a package.
 test('a local path must start with ./, ../ or /', async t => {
-  t.is((await cli('pkg', '+from-path', './lib/drive')).code, 0, 'a path is a path')
-  t.is((await cli('pkg', '+from-name', 'lib')).err, 'Unknown package or source: lib', 'a name is never a folder')
+  fs.mkdirSync(path.join(home, 'plain'))
+  fs.writeFileSync(path.join(home, 'plain', 'file.txt'), 'in a folder\n')
+  t.is((await cli_in(home, 'pkg', '+from-path', './plain')).code, 0, 'a path is a path')
+  t.is((await cli_in(home, 'pkg', '+from-name', 'plain')).err, 'Unknown package or source: plain', 'a name is never a folder')
 })
 
 // Adding /<file> to a specifier runs that file as a generator instead of copying.
-// The flamingo generator only writes the app's own data: a fresh wallet.json.
+// Options after ? reach the generator, which writes whatever the app needs.
 test('generator specifiers run a file from a drive', async t => {
   const specs = {
-    'gen-name': 'flamingo-node/generate?ask=no',
+    'gen-name': 'sample/generate?ask=no',
     'gen-link': code_link + '/generate?ask=no',
     'gen-id': parts_of(code_link).id + '/generate?ask=no'
   }
   for (const [name, spec] of Object.entries(specs)) {
     const result = await cli('pkg', '+' + name, spec)
     t.is(result.code, 0, result.err)
-    t.alike(fs.readdirSync(await export_pkg(name)), ['wallet.json'], name)
+    const folder = await export_pkg(name)
+    t.alike(fs.readdirSync(folder), ['config.json'], name)
+    t.alike(read_json(path.join(folder, 'config.json')), { ask: 'no' }, 'options reached the generator')
   }
 })
 
@@ -200,7 +203,7 @@ test('drive code runs straight from the drive; dynamic import() is refused', asy
 // The one-step way to make a bot: run the generator and register the result.
 // A new bot is stopped, and its drive is also kept as a package of the same name.
 test('bot +<name> <generator> creates a stopped bot', async t => {
-  const created = await cli('bot', '+alice', 'flamingo-node/generate?ask=no')
+  const created = await cli('bot', '+alice', 'sample/generate?ask=no')
   t.is(created.code, 0, created.err)
   t.ok(created.out.includes('Status: stopped'), 'starts stopped')
   t.ok((await cli('bot')).out.includes('Name: alice'), 'listed')
@@ -212,18 +215,8 @@ test('bot +<name> <generator> creates a stopped bot', async t => {
 // The code can't change under a bot without its reference changing.
 test('bot.json pins the code the bot runs', async t => {
   const folder = await export_pkg('alice')
-  t.alike(fs.readdirSync(folder).sort(), ['bot.json', 'wallet.json'])
+  t.alike(fs.readdirSync(folder).sort(), ['bot.json', 'config.json'])
   t.is(read_json(path.join(folder, 'bot.json')).entry, code_link + '/main.js')
-})
-
-// Every bot gets its own wallet, so two bots are two separate Lightning identities.
-test('each bot gets its own 12-word identity', async t => {
-  t.is((await cli('bot', '+bob', 'flamingo-node/generate?ask=no')).code, 0)
-  const alice = read_json(path.join(await export_pkg('alice'), 'wallet.json'))
-  const bob = read_json(path.join(await export_pkg('bob'), 'wallet.json'))
-  t.is(alice.mnemonic.split(' ').length, 12)
-  t.ok(bip39.validateMnemonic(alice.mnemonic), 'a valid BIP39 phrase')
-  t.not(alice.mnemonic, bob.mnemonic)
 })
 
 // A configuration drive is just a drive with a bot.json in it, so it can also be
@@ -238,75 +231,52 @@ test('bot +<name> <config drive> uses an existing configuration drive', async t 
   t.is(drive_of(result), drive_of(await cli('pkg', 'carol-config')))
 })
 
-// The entry's job is to run the node, not to make an identity. Carol's drive has no
-// wallet.json, so the bot stops with an error before anything touches Docker.
-// (--attach runs it in this terminal, so the error shows up right here.)
-test('a flamingo bot stops when it has no wallet.json', async t => {
-  const result = await cli('bot', 'carol', '--run', '--attach')
-  t.is(result.code, 1)
-  t.ok(result.err.includes('This bot has no wallet.json'), 'says why')
-  t.ok((await cli('bot', 'carol')).out.includes('Status: stopped'), 'not left running')
-})
-
-// The flamingo backend isn't in the drive yet; Docker runs it from the local
-// flamingo-node folder. So a bot started anywhere else stops with an error
-// before anything touches Docker.
-test('a flamingo bot must start from the flamingo-node folder', async t => {
-  const result = await cli_in(home, 'bot', 'alice', '--run', '--attach')
-  t.is(result.code, 1)
-  t.ok(result.err.includes('Run this bot from the flamingo-node folder'), 'says why')
-})
-
 // --run starts a bot as a background daemon and gives the terminal back; the bot
 // keeps running after this command exits. Its output goes to run/<name>.log.
 // Status shows it running, a second --run is refused, and --end stops it.
 test('bot <name> --run starts it in the background; --end stops it', async t => {
-  const code = path.join(home, 'ticker-code')
-  fs.mkdirSync(code)
-  fs.writeFileSync(path.join(code, 'generate.js'), 'module.exports = async function () {}\n')
-  fs.writeFileSync(path.join(code, 'main.js'), [
-    'module.exports = async function (drive, { stopped, log }) {',
-    "  log('ticker started')",
-    '  await stopped',
-    "  log('ticker stopping')",
-    '}'
-  ].join('\n'))
-  t.is((await cli('pkg', '+ticker-code', code)).code, 0)
-  t.is((await cli('bot', '+ticker', 'ticker-code/generate')).code, 0)
-
-  const started = await cli('bot', 'ticker', '--run')
+  const started = await cli('bot', 'alice', '--run')
   t.is(started.code, 0, started.err)
   t.ok(started.out.includes('Status: running'), 'returns with the bot running')
-  const output = path.join(home, '.flamingo', 'run', 'ticker.log')
-  t.ok(await until(() => fs.readFileSync(output, 'utf8').includes('ticker started')), 'its output goes to the log')
-  t.ok((await cli('bot', 'ticker')).out.includes('Status: running'), 'still running after --run exited')
-  t.is((await cli('bot', 'ticker', '--run')).err, 'This bot is already running')
+  const output = path.join(home, '.flamingo', 'run', 'alice.log')
+  t.ok(await until(() => fs.readFileSync(output, 'utf8').includes('sample started')), 'its output goes to the log')
+  t.ok((await cli('bot', 'alice')).out.includes('Status: running'), 'still running after --run exited')
+  t.is((await cli('bot', 'alice', '--run')).err, 'This bot is already running')
 
-  t.ok((await cli('bot', 'ticker', '--end')).out.includes('Status: stopped'), '--end stops it')
-  t.ok(fs.readFileSync(output, 'utf8').includes('ticker stopping'), 'and it shut down cleanly')
+  t.ok((await cli('bot', 'alice', '--end')).out.includes('Status: stopped'), '--end stops it')
+  t.ok(fs.readFileSync(output, 'utf8').includes('sample stopping'), 'and it shut down cleanly')
 })
 
 // --run --attach runs the bot in this terminal instead, until Ctrl+C (SIGINT).
 test('bot <name> --run --attach runs it in the foreground; Ctrl+C stops it', async t => {
-  const attached = launch(repo, ['bot', 'ticker', '--run', '--attach'])
-  t.ok(await until(async () => (await cli('bot', 'ticker')).out.includes('Status: running')), 'running')
+  const attached = launch(repo, ['bot', 'alice', '--run', '--attach'])
+  t.ok(await until(async () => (await cli('bot', 'alice')).out.includes('Status: running')), 'running')
   attached.child.kill('SIGINT')
   const result = await attached.exited
   t.is(result.code, 0)
-  t.ok(result.out.includes('ticker stopping'), 'shut down cleanly')
+  t.ok(result.out.includes('sample stopping'), 'shut down cleanly')
 })
 
-// Two bots on one drive would share one wallet and one data folder, so a
+// What a running bot saves is kept: the drive moves to a new revision, and the bot
+// and its package both point at it.
+test('what a bot saves while running is kept', async t => {
+  const folder = await export_pkg('alice')
+  t.is(read_json(path.join(folder, 'bot.json')).entry, code_link + '/main.js', 'still the same code')
+  t.is(fs.readFileSync(path.join(folder, 'data.txt'), 'utf8'), 'saved while running')
+  t.is(drive_of(await cli('pkg', 'alice')), drive_of(await cli('bot', 'alice')), 'bot and package agree')
+})
+
+// Two bots on one drive would share one identity and one data folder, so a
 // configuration drive belongs to exactly one bot, and it must contain bot.json.
 // A bot must pin its code to a drive, so a local folder or local generator file
 // is refused.
 test('bot registration is refused when it would clash', async t => {
   const local = 'A bot needs a drive, not a local path: pass a package name, drive id or dat:// reference'
-  t.is((await cli('bot', '+alice', 'flamingo-node/generate?ask=no')).err, 'Bot already exists: alice')
+  t.is((await cli('bot', '+alice', 'sample/generate?ask=no')).err, 'Bot already exists: alice')
   t.is((await cli('bot', '+dave', 'alice')).err, 'That configuration drive is already used by bot: alice')
   t.is((await cli('bot', '+dave', 'by-link')).err, 'Configuration drive must contain bot.json')
-  t.is((await cli('bot', '+dave', './lib/drive')).err, local, 'local folder refused')
-  t.is((await cli('bot', '+dave', './lib/drive/generate.js')).err, local, 'local generator refused')
+  t.is((await cli('bot', '+dave', sample)).err, local, 'local folder refused')
+  t.is((await cli('bot', '+dave', path.join(sample, 'generate.js'))).err, local, 'local generator refused')
 })
 
 // Deleting a bot removes its own drive, but never the code it was made from.
@@ -314,14 +284,14 @@ test('bot -<name> deletes the bot and its drive, keeping the code', async t => {
   t.is((await cli('bot', '-alice')).out, 'Deleted: alice')
   t.is((await cli('bot', 'alice')).err, 'Unknown bot: alice')
   t.is((await cli('pkg', 'alice')).code, 1, 'its package is gone too')
-  t.is(drive_of(await cli('pkg', 'flamingo-node')), code_link, 'code package kept')
+  t.is(drive_of(await cli('pkg', 'sample')), code_link, 'code package kept')
 })
 
 // Deleting a package removes it and its local data, freeing the name.
 test('pkg -<name> deletes a package', async t => {
   t.is((await cli('pkg', '-by-name')).out, 'Deleted: by-name')
   t.is((await cli('pkg', 'by-name')).code, 1)
-  t.is((await cli('pkg', '+by-name', 'flamingo-node')).code, 0, 'name is free again')
+  t.is((await cli('pkg', '+by-name', 'sample')).code, 0, 'name is free again')
 })
 
 // The pkg commands are a thin layer over the packs module (packs/README.md), which
@@ -329,11 +299,11 @@ test('pkg -<name> deletes a package', async t => {
 test('packs module: package operations as plain functions', async t => {
   const pkgs = packs(path.join(home, 'packs-api'))
   await pkgs.open()
-  const link = await pkgs.create('code', './lib/drive', repo)
+  const link = await pkgs.create('code', sample, repo)
   t.is(pkgs.get('code'), link, 'registered')
   t.alike(pkgs.list(), ['code'])
   const folder = await pkgs.export_to('code', path.join(home, 'packs-api-export'), repo)
-  t.alike(files_of(folder), files_of(code_folder), 'exported')
+  t.alike(files_of(folder), files_of(sample), 'exported')
   await pkgs.remove(link)
   t.alike(pkgs.list(), [], 'removed')
   await pkgs.close()
@@ -343,20 +313,11 @@ test('packs module: package operations as plain functions', async t => {
 // on packs. A task runs in-process: start it, it saves data to its drive, stop it,
 // and both the task and its package now point at the revision with that data.
 test('tasks module: start a task, let it save, stop it', async t => {
-  const code = path.join(home, 'tasks-api-code')
-  fs.mkdirSync(code)
-  fs.writeFileSync(path.join(code, 'generate.js'), 'module.exports = async function () {}\n')
-  fs.writeFileSync(path.join(code, 'main.js'), [
-    'module.exports = async function (drive, { stopped }) {',
-    "  await drive.put('/hello.txt', Buffer.from('saved while running'))",
-    '  await stopped',
-    '}'
-  ].join('\n'))
   const pkgs = packs(path.join(home, 'tasks-api'))
   const bots = tasks(pkgs)
   await pkgs.open()
   await bots.open()
-  await pkgs.create('code', code, repo)
+  await pkgs.create('code', sample, repo)
   const created = await bots.create('hello', 'code/generate', repo)
 
   await bots.start('hello', () => {})
@@ -367,7 +328,7 @@ test('tasks module: start a task, let it save, stop it', async t => {
   t.not(bots.get('hello'), created, 'moved to a newer revision')
   t.is(pkgs.get('hello'), bots.get('hello'), 'package moved with it')
   const folder = await pkgs.export_to('hello', path.join(home, 'tasks-api-export'), repo)
-  t.is(fs.readFileSync(path.join(folder, 'hello.txt'), 'utf8'), 'saved while running')
+  t.is(fs.readFileSync(path.join(folder, 'data.txt'), 'utf8'), 'saved while running')
   await bots.close()
   await pkgs.close()
 })
