@@ -47,8 +47,8 @@ code to a drive.
 
 | Specifier | Action |
 | --- | --- |
-| Local directory | Copy its contents. |
-| Local file | Execute it as a generator. |
+| Local directory (`./dir`, `../dir`, `/dir`) | Copy its contents. |
+| Local file (`./file`, `../file`, `/file`) | Execute it as a generator. |
 | `dat://<length>.<fork>.<id>.<hash>` | Copy the referenced revision's contents. |
 | `dat://<length>.<fork>.<id>.<hash>/generate?ask=no` | Execute the referenced generator. |
 | Package name | Copy the package's contents. |
@@ -76,8 +76,8 @@ module.exports = async function (drive, options) {
 Query parameters become options, for example `?ask=no`. The generator can prompt
 for input or run automatically. Registration happens after it finishes filling
 the drive; failed initialization is cleaned up. Values in `options` are strings.
-Local paths take precedence over package names; `.js` may be omitted from a
-generator path within a package.
+A path is recognised by its `./`, `../` or `/` start, so a bare name is always a
+package or a drive id; `.js` may be omitted from a generator path within a package.
 
 A generator only writes the app's own data. When a bot is created from a
 generator, the CLI adds `bot.json` itself (see Bots).

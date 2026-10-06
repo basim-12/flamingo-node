@@ -159,7 +159,14 @@ test('a dat:// reference must match exactly', async t => {
   t.is((await cli('pkg', '+x', wrong_hash)).err, 'Drive hash mismatch')
   t.is((await cli('pkg', '+x', wrong_length)).err, 'Referenced drive revision is unavailable')
   t.ok((await cli('pkg', '+x', 'dat://not-a-reference')).err.startsWith('Invalid pinned drive reference'), 'malformed reference refused')
-  t.ok((await cli('pkg', '+x', './no-such-folder')).err.startsWith('Unknown package or source'), 'missing source refused')
+  t.is((await cli('pkg', '+x', './no-such-folder')).err, 'No such file or folder: ./no-such-folder')
+})
+
+// A path says so: it starts with ./, ../ or /. A bare name is a package or a drive id,
+// never a folder, so the forms can't overlap. `lib` is a folder here, but not a package.
+test('a local path must start with ./, ../ or /', async t => {
+  t.is((await cli('pkg', '+from-path', './lib/drive')).code, 0, 'a path is a path')
+  t.is((await cli('pkg', '+from-name', 'lib')).err, 'Unknown package or source: lib', 'a name is never a folder')
 })
 
 // Adding /<file> to a specifier runs that file as a generator instead of copying.
@@ -292,7 +299,7 @@ test('bot <name> --run --attach runs it in the foreground; Ctrl+C stops it', asy
 // Two bots on one drive would share one wallet and one data folder, so a
 // configuration drive belongs to exactly one bot, and it must contain bot.json.
 // A bot must pin its code to a drive, so a local folder or local generator file
-// is refused. Local paths win over package names, so ./lib/drive is the folder.
+// is refused.
 test('bot registration is refused when it would clash', async t => {
   const local = 'A bot needs a drive, not a local path: pass a package name, drive id or dat:// reference'
   t.is((await cli('bot', '+alice', 'flamingo-node/generate?ask=no')).err, 'Bot already exists: alice')

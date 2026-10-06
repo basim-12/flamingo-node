@@ -74,15 +74,17 @@ function packs (root = ROOT) {
     return `Name: ${name}\nDrive: ${registry[name]}`
   }
 
-  // Resolve a <specifier>: a local folder or file, a dat:// reference, a package
-  // name or a drive id, each optionally followed by /<file> to run a generator.
+  // Resolve a <specifier>: a local folder or file (`./x`, `../x`, `/x`), a dat://
+  // reference, a package name or a drive id, each optionally followed by /<file> to
+  // run a generator. A path says so, so the forms never overlap.
   async function source (spec, cwd) {
     const q = spec.indexOf('?')
     const base = q < 0 ? spec : spec.slice(0, q)
     const options = Object.fromEntries(new URLSearchParams(q < 0 ? '' : spec.slice(q + 1)))
     if (base.startsWith('dat://')) return { link: spec, ...reference(spec) }
-    const local = path.resolve(cwd, base)
-    if (await exists(local)) {
+    if (/^\.{0,2}\//.test(base)) {
+      const local = path.resolve(cwd, base)
+      if (!(await exists(local))) throw new Error(`No such file or folder: ${base}`)
       const real = await fsp.realpath(local)
       const storage = await fsp.realpath(root)
       if (inside(real, storage) || inside(storage, real)) throw new Error('Source must not overlap managed storage')
