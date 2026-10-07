@@ -118,14 +118,20 @@ Use `fw run <scenario.json>` to initialize a Lightning Network topology from a J
 ## Running Flamingo as a bot
 
 The drive and bot CLI in [`scripts/`](scripts/README.md) is generic. `lib/drive` is
-Flamingo's code package for it: a generator and an entry. Import it, then create a
-bot from its generator:
+Flamingo's code package for it: a generator and an entry. `lib/build.js` assembles the
+code drive, so build it, then create a bot from its generator:
 
 ```sh
-cli pkg +flamingo-node ./lib/drive
+cli pkg +flamingo-node ./lib/build.js
 cli bot +demo "flamingo-node/generate?ask=no"
 cli bot demo --run
 ```
+
+`lib/build.js` writes `lib/drive`'s two files plus the installed `flamingo-docker`
+dependency, read from `node_modules` at the commit `package.json` pins, so the drive
+carries the Docker setup without this repository keeping copies of it. Nothing reads
+those files from the drive yet: the bot asks `fw up`, and `fw` loads them from its own
+`node_modules`.
 
 The generator writes `wallet.json`: a fresh 12-word BIP39 mnemonic, made with
 `bip39-mnemonic`. Each generated bot drive gets its own, so separate bots have
