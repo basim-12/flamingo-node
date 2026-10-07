@@ -1,8 +1,8 @@
 # Hyperdrive packages and bots
 
 A generic CLI for named drives (`pkg`) and the bots that run from them (`bot`),
-independent of Flamingo's own `fw` command. Run it with Bare from the
-flamingo-node folder; the examples below write it as `cli`:
+independent of Flamingo's own `fw` command. It is installed as the `cli` command, or
+run it with Bare from the flamingo-node folder; the examples below write it as `cli`:
 
 ```sh
 alias cli="npx bare scripts/cli.js"

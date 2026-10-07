@@ -9,6 +9,11 @@ Bitcoin Lightning Network backend — manages bitcoind, lightningd, and a WebSoc
 npm install -g flamingo-node
 ```
 
+That installs two commands: `fw`, which runs the Flamingo node, and `cli`, the generic
+drive and bot CLI described in [scripts/README.md](scripts/README.md). `npm link` in a
+clone gives you the same two. `cli` runs on Bare, so it needs `bare` on PATH; `fw` is a
+Node command and works anywhere.
+
 ## CLI Reference
 
 ```text

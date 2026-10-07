@@ -33,6 +33,7 @@
     "lint": "standardx --fix --eslint"
   },
   "bin": {
+    "cli": "scripts/cli.js",
     "fw": "lib/cli.js"
   },
   "dependencies": {
