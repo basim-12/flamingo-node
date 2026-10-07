@@ -14,7 +14,7 @@ const bots = tasks(pkgs)
 await pkgs.open()
 await bots.open()
 await bots.create('alice', 'flamingo-node/generate?ask=no', process.cwd())
-const { done } = await bots.start('alice', console.log)
+const { done } = await bots.start('alice', console.log) // and into the task's log core
 // … later, from this process:
 await bots.end('alice')
 await bots.close()
@@ -34,7 +34,7 @@ The entry is a function the code drive exports:
 module.exports = async function (drive, { stopped, log }) {
   // drive: the task's own writable drive
   // stopped: resolves when the task is asked to stop
-  // log(line): print a line for the operator
+  // log(line): show a line to whoever started it, and append it to the log core
   await stopped
 }
 ```
@@ -73,6 +73,7 @@ Next to the packs' storage under the same root:
 | `info(name)` | `Name`, `Drive`, `Package` and `Status` (running/stopped) lines. Throws for an unknown name. |
 | `busy(link)` | Whether any task on the drive behind `link` is running. |
 | `create(name, spec, cwd)` | Register a task. `spec` names a drive that already holds `bot.json`, or a generator in a drive (`<drive>/generate`). A generator fills a fresh drive, which is also registered as a pack under `name`, and `bot.json` is written for it. Refused if the drive already belongs to another task. Returns the drive's reference. |
-| `start(name, log)` | Run the task's entry in this process. Writes `run/<name>.pid` and keeps the task's and its packs' references on the latest revision as it saves data. Returns `{ done, stop }`: `done` settles once the task has finished. |
+| `start(name, print)` | Run the task's entry in this process. Writes `run/<name>.pid`, appends everything the task logs to its log core, and keeps the task's and its packs' references on the latest revision as it saves data. Returns `{ done, stop }`: `done` settles once the task has finished. |
+| `read_log(name)` | Everything the task has logged, oldest first, across every run. Needs the store, so it only works once the task has stopped. |
 | `end(name)` | Stop a running task: directly if this process runs it, otherwise by signalling the process that does and waiting for it to exit. |
 | `remove(link)` | Delete a drive with every pack and task registered on it. Refused while a task on that drive runs. |

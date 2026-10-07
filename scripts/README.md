@@ -117,15 +117,20 @@ module.exports = async function (drive, { stopped, log }) {
 ```
 
 `drive` is the writable bot drive. `stopped` resolves on `--end` or Ctrl+C.
-`log(line)` prints a line for the operator. An entry may instead return a cleanup
+`log(line)` shows a line to whoever started the bot and appends it to its log core. An
+entry may instead return a cleanup
 function, which the CLI awaits after `stopped`.
 
 `cli bot <name> --run` starts the bot as a background daemon (using `bare-daemon`)
 and returns once it is running. The bot keeps running after the command and the
-terminal have gone; its output goes to `~/.flamingo/run/<name>.log`, replaced on
-each run. `cli bot <name> --run --attach` runs it in this terminal instead, until
-Ctrl+C. Either way a running bot writes `~/.flamingo/run/<name>.pid` and holds the
-shared Corestore. `cli bot`, `cli bot <name> --see` and `cli bot <name> --end` don't
+terminal have gone. Everything it logs is appended to a hypercore of its own, kept in
+the shared Corestore, which it reopens and adds to on every run; there is no log file.
+`cli bot <name> --log` prints it, oldest first. Reading needs the store, which a
+running bot holds, so the log is readable once the bot has stopped.
+`cli bot <name> --run --attach` runs it in this terminal instead, until
+Ctrl+C, and prints the same lines as it appends them. Either way a running bot writes
+`~/.flamingo/run/<name>.pid` and holds the shared Corestore. `cli bot`,
+`cli bot <name> --see` and `cli bot <name> --end` don't
 open the store, so they work while a bot runs; `--end` sends the bot's process a
 termination signal and waits for it to stop. Package changes (`cli pkg +`/`-`,
 `cli bot +`/`-`) need the store and are refused while a bot is running. Bots only
@@ -136,9 +141,10 @@ start when you run them; nothing starts them automatically.
 | `cli bot +<name> <specifier>` | Register a stopped bot. `<specifier>` must name a drive — package name, drive id or `dat://` reference — because a bot pins its code to a drive; local paths are refused. A drive on its own is used as the configuration drive directly (it must already contain a valid `bot.json`). `<drive>/generate` runs that drive's generator into a fresh bot drive, the CLI writes its `bot.json`, and it is registered as a package under `<name>` too. Reject an existing bot name, a package-name conflict, or a configuration drive already registered to another bot (checked by drive id). |
 | `cli bot <name>` / `cli bot <name> --see` | Show its drive reference, package name if available, and running/stopped status. |
 | `cli bot` | List registered bots. |
-| `cli bot <name> --run` | Verify and launch the entry from bot.json in the background, and return once it runs. Output goes to `run/<name>.log`. Reuse existing bot data and identity. A bot is a singleton: refuse if it, or another bot on the same drive, is already running. |
+| `cli bot <name> --run` | Verify and launch the entry from bot.json in the background, and return once it runs. Reuse existing bot data and identity. A bot is a singleton: refuse if it, or another bot on the same drive, is already running. |
 | `cli bot <name> --run --attach` | The same, but in this terminal; Ctrl+C stops it. |
 | `cli bot <name> --end` | Stop the bot cleanly and preserve its data. |
+| `cli bot <name> --log` | Print everything the bot has logged, across every run. Refused while it runs, because it holds the store. |
 | `cli bot -<name>` | Refuse while running. Otherwise remove the bot and purge its associated bot package/data, preserving the code package and unrelated data. |
 
 Generator shortcut and lifecycle:
@@ -149,6 +155,7 @@ cli bot demo --see
 cli bot demo --run      # returns once the bot is running in the background
 cli bot demo            # Status: running
 cli bot demo --end
+cli bot demo --log      # what it logged, this run and every earlier one
 cli bot -demo
 ```
 
@@ -164,8 +171,8 @@ worked example of what a real generator and entry look like.
 ~/.flamingo/
 ├── pkgs.json       # { "<package-name>": "dat://...", ... }
 ├── bots.json       # { "<bot-name>": "dat://...", ... }
-├── corestore/      # Shared persistent drive storage
-└── run/            # <bot-name>.pid while it runs; <bot-name>.log from its last --run
+├── corestore/      # Shared persistent drive storage, and each bot's log core
+└── run/            # <bot-name>.pid while it runs
 ```
 
 - Use `pkg` / package-name and `bot` / bot-name Corestore namespaces.

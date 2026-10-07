@@ -1,6 +1,4 @@
 #!/usr/bin/env bare
-const fs = require('bare-fs')
-const path = require('bare-path')
 const process = require('bare-process')
 const { spawn: daemon } = require('bare-daemon')
 const packs = require('./packs')
@@ -13,7 +11,7 @@ const usage = `Usage:
   cli pkg <name> <dirpath> | cli pkg <name> --export=<dirpath>
   cli pkg -<name>
   cli bot +<name> <specifier>
-  cli bot <name> [--see|--run|--run --attach|--end] | cli bot
+  cli bot <name> [--see|--run|--run --attach|--end|--log] | cli bot
   cli bot -<name>
 
 <specifier> is a local folder or file, a package name, a drive id or a dat://
@@ -51,6 +49,7 @@ function parse (args) {
   if (!option || option === '--see') return { kind, name, action: 'see' }
   if (kind === 'bot' && option === '--run') return { kind, name, action: attach ? 'attach' : 'run' }
   if (kind === 'bot' && option === '--end') return { kind, name, action: 'end' }
+  if (kind === 'bot' && option === '--log') return { kind, name, action: 'log' }
   if (kind === 'pkg') {
     if (option.startsWith('--import=') && option.slice(9)) return { kind, name, action: 'create', source: option.slice(9) }
     if (option.startsWith('--export=') && option.slice(9)) return { kind, name, action: 'export', source: option.slice(9) }
@@ -80,6 +79,7 @@ async function command (pkgs, bots, { kind, action, name, source }, cwd) {
   if (!bots.get(name)) throw new Error(`Unknown bot: ${name}`)
   if (action === 'run') return background(pkgs, bots, name)
   if (action === 'attach') return bots.start(name, line => console.log(line))
+  if (action === 'log') return await bots.read_log(name) || 'This bot has logged nothing.'
   if (action === 'end') await bots.end(name)
   if (action === 'delete') {
     await bots.remove(bots.get(name))
@@ -89,19 +89,17 @@ async function command (pkgs, bots, { kind, action, name, source }, cwd) {
 }
 
 // Start a bot as a daemon: this CLI again with --run --attach, in its own session so
-// it outlives this process and the terminal. bare-daemon can't redirect output, so
-// `sh -c 'exec …'` sends it to run/<name>.log and then becomes the bot process.
-// Return once the bot is running; if it dies before that, fail with what it printed.
+// it outlives this process and the terminal. The bot logs to its own hypercore, so
+// nothing is piped back here. Return once it is running; if it dies before that, read
+// what it logged, which the dead bot has now released.
 async function background (pkgs, bots, name) {
   if (bots.busy(bots.get(name))) throw new Error('This bot is already running')
-  const output = path.join(pkgs.root, 'run', name + '.log')
-  fs.mkdirSync(path.dirname(output), { recursive: true })
-  const { pid } = daemon('/bin/sh', ['-c', 'exec "$@" > "$0" 2>&1', output, process.execPath, __filename, 'bot', name, '--run', '--attach'])
+  const { pid } = daemon(process.execPath, [__filename, 'bot', name, '--run', '--attach'])
   while (!bots.busy(bots.get(name))) {
-    if (!alive(pid)) throw new Error(fs.readFileSync(output, 'utf8').trim())
+    if (!alive(pid)) throw new Error(await bots.read_log(name))
     await new Promise(resolve => setTimeout(resolve, 100))
   }
-  return bots.info(name) + '\nRunning in the background. Output: ' + output
+  return bots.info(name) + `\nRunning in the background. Its log: cli bot ${name} --log`
 }
 
 function alive (pid) {

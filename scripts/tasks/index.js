@@ -15,7 +15,7 @@ function tasks (pkgs) {
   const running = new Map()
   let registry = Object.create(null)
   let saving = Promise.resolve()
-  const api = { open, close, list, get, info, busy, create, start, end, remove }
+  const api = { open, close, list, get, info, busy, create, start, end, read_log, remove }
   return api
 
   // Read bots.json. Needs no store, so it works while a running bot holds one.
@@ -89,7 +89,9 @@ function tasks (pkgs) {
   }
 
   // Run a task's entry in this process until it is stopped. Returns { done, stop }.
-  async function start (name, log) {
+  // `print` shows a line to whoever started it; every line is also appended to the
+  // task's log core, which outlives the run.
+  async function start (name, print) {
     if (busy(registry[name])) throw new Error('This bot is already running')
     const opened = await pkgs.open_drive(registry[name], false)
     let entry
@@ -100,6 +102,12 @@ function tasks (pkgs) {
       await opened.close()
       throw err
     }
+
+    const core = await pkgs.core('log', name)
+    await core.ready()
+    let appends = Promise.resolve()
+    const append = line => { appends = appends.then(() => core.append(line)); return appends }
+    const log = line => { append(line); print(line) }
 
     let stop
     const stopped = new Promise(resolve => { stop = resolve })
@@ -123,12 +131,17 @@ function tasks (pkgs) {
           await stopped
           await cleanup()
         }
+      } catch (err) {
+        append('Error: ' + err.message)
+        throw err
       } finally {
         opened.drive.core.off('append', updated)
         try {
           await updates
           await refresh(opened.drive)
         } finally {
+          await appends
+          await core.close()
           await fsp.rm(pidfile, { force: true })
           await opened.close()
           running.delete(name)
@@ -153,6 +166,19 @@ function tasks (pkgs) {
     try { process.kill(found.pid, 'SIGTERM') } catch (err) { if (err.code !== 'ESRCH') throw err }
     for (let i = 0; i < 600 && runner(name); i++) await new Promise(resolve => setTimeout(resolve, 50))
     if (runner(name)) throw new Error('The running bot did not stop in time')
+  }
+
+  // Everything a task has logged, oldest first, across every run. Reading needs the
+  // store, so it only works once the task has stopped.
+  async function read_log (name) {
+    if (!registry[name]) throw new Error(`Unknown bot: ${name}`)
+    const core = await pkgs.core('log', name)
+    await core.ready()
+    try {
+      const lines = []
+      for (let i = 0; i < core.length; i++) lines.push((await core.get(i)).toString())
+      return lines.join('\n')
+    } finally { await core.close() }
   }
 
   // Delete a drive with every package and task registered on it. Refused while a

@@ -79,6 +79,10 @@ function drive_of (result) {
   return result.out.match(/^Drive: (\S+)$/m)[1]
 }
 
+function count (text, part) {
+  return text.split(part).length - 1
+}
+
 // dat://<length>.<fork>.<id>.<hash>
 function parts_of (link) {
   const [length, fork, id, hash] = link.slice('dat://'.length).split('.')
@@ -232,19 +236,36 @@ test('bot +<name> <config drive> uses an existing configuration drive', async t 
 })
 
 // --run starts a bot as a background daemon and gives the terminal back; the bot
-// keeps running after this command exits. Its output goes to run/<name>.log.
-// Status shows it running, a second --run is refused, and --end stops it.
+// keeps running after this command exits. Status shows it running, a second --run is
+// refused, and --end stops it.
 test('bot <name> --run starts it in the background; --end stops it', async t => {
   const started = await cli('bot', 'alice', '--run')
   t.is(started.code, 0, started.err)
   t.ok(started.out.includes('Status: running'), 'returns with the bot running')
-  const output = path.join(home, '.flamingo', 'run', 'alice.log')
-  t.ok(await until(() => fs.readFileSync(output, 'utf8').includes('sample started')), 'its output goes to the log')
+  t.ok(started.out.includes('cli bot alice --log'), 'says where its output went')
   t.ok((await cli('bot', 'alice')).out.includes('Status: running'), 'still running after --run exited')
   t.is((await cli('bot', 'alice', '--run')).err, 'This bot is already running')
 
   t.ok((await cli('bot', 'alice', '--end')).out.includes('Status: stopped'), '--end stops it')
-  t.ok(fs.readFileSync(output, 'utf8').includes('sample stopping'), 'and it shut down cleanly')
+})
+
+// A bot logs to a hypercore of its own, not to a file, and keeps appending to the same
+// one every time it runs. Reading it needs the drive storage, which a running bot holds,
+// so the log is readable once the bot has stopped.
+test('bot <name> --log is what the bot logged, run after run', async t => {
+  const first = await cli('bot', 'alice', '--log')
+  t.ok(first.out.includes('sample started'), 'what the entry logged')
+  t.ok(first.out.includes('sample stopping'), 'including its clean shutdown')
+  t.absent(fs.existsSync(path.join(home, '.flamingo', 'run', 'alice.log')), 'no log file anywhere')
+
+  t.is((await cli('bot', 'alice', '--run')).code, 0)
+  const while_running = await cli('bot', 'alice', '--log')
+  t.is(while_running.err, 'Drive storage is in use by another process, such as a running bot')
+  await cli('bot', 'alice', '--end')
+
+  const second = await cli('bot', 'alice', '--log')
+  t.is(count(second.out, 'sample started'), 2, 'the second run appended to the same log')
+  t.ok(second.out.startsWith(first.out), 'the first run is still there, unchanged')
 })
 
 // --run --attach runs the bot in this terminal instead, until Ctrl+C (SIGINT).

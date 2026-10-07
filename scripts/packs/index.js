@@ -27,7 +27,7 @@ function packs (root = ROOT) {
   let corestore = null
   let registry = Object.create(null)
   let saving = Promise.resolve()
-  const api = { root, open, close, list, get, find, info, source, open_drive, load, create, update, remove, export_to }
+  const api = { root, open, close, list, get, find, info, source, open_drive, load, core, create, update, remove, export_to }
   return api
 
   async function open () {
@@ -50,6 +50,11 @@ function packs (root = ROOT) {
   async function close () {
     await saving
     if (corestore !== null) await corestore.close()
+  }
+
+  // A plain hypercore in its own namespace, for what a task keeps outside its drive.
+  async function core (namespace, name) {
+    return (await drives()).namespace(namespace).get({ name })
   }
 
   function save () {
