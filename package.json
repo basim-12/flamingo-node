@@ -2,6 +2,29 @@
   "name": "flamingo-node",
   "version": "0.1.0",
   "type": "commonjs",
+  "main": "lib/flamingo.js",
+  "imports": {
+    "child_process": {
+      "bare": "bare-subprocess",
+      "default": "child_process"
+    },
+    "fs": {
+      "bare": "bare-fs",
+      "default": "fs"
+    },
+    "os": {
+      "bare": "bare-os",
+      "default": "os"
+    },
+    "path": {
+      "bare": "bare-path",
+      "default": "path"
+    },
+    "process": {
+      "bare": "bare-process",
+      "default": "process"
+    }
+  },
   "scripts": {
     "cli": "node lib/cli.js",
     "backup:poc": "bare scripts/hyperdrive-poc.js",

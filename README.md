@@ -18,6 +18,28 @@ fw up --run <file.json>  # Start and run a network scenario
 fw up --shutdown         # Cleanly stop nodes and remove the container
 ```
 
+## Programmatic API
+
+`fw` only reads the command line; the work is in `lib/flamingo.js`, which anything can
+call instead of shelling out to the CLI:
+
+```js
+const { up, down, running } = require('flamingo-node')
+
+await up()                               // same as `fw up`
+await up({ attach: true })               // ... and stream the container's logs
+await up({ scenario: 'two-nodes.json' }) // ... and run a scenario
+await running()                          // is the container up?
+await down()                             // same as `fw up --shutdown`
+```
+
+It throws on failure rather than exiting, so the caller decides what to do. The Docker
+layer underneath it loads under both Node and Bare: the `imports` map in `package.json`
+points `child_process`, `fs`, `os`, `path` and `process` at the `bare-*` packages when
+Bare resolves them, and Node ignores the map because its keys don't start with `#`. The
+container entrypoint (`fw start`) stays Node-only, since bitcoind, lightningd and the
+WebSocket daemon need it.
+
 ## How is `fw start/stop` different from `fw up/down`?
 
 Previously, `start/stop` managed local/bare-metal processes while `up/down` managed the Docker environment. These have been unified into `fw up` to simplify the API surface and hide implementation details. Docker is now considered an internal implementation detail that the CLI manages automatically.
