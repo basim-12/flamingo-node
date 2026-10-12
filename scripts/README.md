@@ -165,6 +165,14 @@ Flamingo's own generator, entry and bot live in `lib/drive` and are described in
 [Running Flamingo as a bot](../README.md#running-flamingo-as-a-bot). Useful as a
 worked example of what a real generator and entry look like.
 
+## Kits
+
+A drive can say which JS modules its code needs, and the loader provides them (see
+Generators).
+[kits.md](kits.md) is a proposal for how a drive would declare that and how datashell would
+provide it inside a sandbox, with the CLI commands and JS calls it would add. Nothing in it
+is implemented.
+
 ## Storage and shared behavior
 
 ```text
