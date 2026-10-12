@@ -11,8 +11,7 @@ const process = require('bare-process')
 const packs = require('./packs')
 
 const storage_default_path = path.join(os.homedir(), '.flamingo')
-const pkgs = packs(storage_default_path)
-await pkgs.open()
+const pkgs = await packs(storage_default_path)
 await pkgs.create('flamingo-node', './lib/drive', process.cwd())
 console.log(pkgs.info('flamingo-node')) // Name: flamingo-node / Drive: dat://…
 await pkgs.close()
@@ -39,13 +38,14 @@ reference checks the hash, so a reference can't silently point at other content.
 
 ## API
 
-`packs(root = ~/.flamingo)` returns an object with the functions below.
+`await packs(root = ~/.flamingo)` reads `pkgs.json` and returns an object with the
+functions below. The shared store opens by itself the first time a drive is touched, so
+reading names works while a running bot holds its lock.
 
 ### Opening and closing
 
 | Function | What it does |
 | --- | --- |
-| `open()` | Read `pkgs.json`. The shared store opens by itself the first time a drive is touched, so reading names works while a running bot holds its lock. |
 | `close()` | Wait for pending saves and close the store. |
 
 ### Names

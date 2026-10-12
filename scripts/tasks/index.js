@@ -10,18 +10,15 @@ module.exports = tasks
 // Things that run from a pack's drive and can be stopped and started again, such as
 // a bot. Built on a packs() instance; the drive holds bot.json (what to run) and
 // whatever the task saves.
-function tasks (pkgs) {
+async function tasks (pkgs) {
   const run_dir = path.join(pkgs.root, 'run')
   const running = new Map()
-  let registry = Object.create(null)
   let saving = Promise.resolve()
-  const api = { open, close, list, get, info, busy, create, start, end, read_log, remove }
-  return api
+  const api = { close, list, get, info, busy, create, start, end, read_log, remove }
 
-  // Read bots.json. Needs no store, so it works while a running bot holds one.
-  async function open () {
-    registry = Object.assign(Object.create(null), await read_json(path.join(pkgs.root, 'bots.json')))
-  }
+  // Reading bots.json needs no store, so this works while a running bot holds one.
+  const registry = Object.assign(Object.create(null), await read_json(path.join(pkgs.root, 'bots.json')))
+  return api
 
   async function close () {
     await saving

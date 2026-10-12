@@ -325,8 +325,7 @@ test('pkg -<name> deletes a package', async t => {
 // The pkg commands are a thin layer over the packs module (packs/README.md), which
 // works on its own. Here is the same import, export and delete, called as functions.
 test('packs module: package operations as plain functions', async t => {
-  const pkgs = packs(path.join(home, 'packs-api'))
-  await pkgs.open()
+  const pkgs = await packs(path.join(home, 'packs-api'))
   const link = await pkgs.create('code', sample, repo)
   t.is(pkgs.get('code'), link, 'registered')
   t.alike(pkgs.list(), ['code'])
@@ -341,10 +340,8 @@ test('packs module: package operations as plain functions', async t => {
 // on packs. A task runs in-process: start it, it saves data to its drive, stop it,
 // and both the task and its package now point at the revision with that data.
 test('tasks module: start a task, let it save, stop it', async t => {
-  const pkgs = packs(path.join(home, 'tasks-api'))
-  const bots = tasks(pkgs)
-  await pkgs.open()
-  await bots.open()
+  const pkgs = await packs(path.join(home, 'tasks-api'))
+  const bots = await tasks(pkgs)
   await pkgs.create('code', sample, repo)
   const created = await bots.create('hello', 'code/generate', repo)
 

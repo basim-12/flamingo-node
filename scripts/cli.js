@@ -20,10 +20,8 @@ Details: scripts/README.md#specifiers`
 async function main () {
   const cmd = parse(process.argv.slice(2))
   if (cmd.action === 'help') return console.log(usage)
-  const pkgs = packs()
-  const bots = tasks(pkgs)
-  await pkgs.open()
-  await bots.open()
+  const pkgs = await packs()
+  const bots = await tasks(pkgs)
   try {
     const result = await command(pkgs, bots, cmd, process.cwd())
     console.log(result.done ? await foreground(result) : result)

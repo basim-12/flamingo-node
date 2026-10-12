@@ -21,17 +21,14 @@ module.exports = packs
 packs.reference = reference
 packs.drive_link = drive_link
 
-function packs (root = ROOT) {
+async function packs (root = ROOT) {
   let corestore = null
-  let registry = Object.create(null)
   let saving = Promise.resolve()
-  const api = { root, open, close, list, get, find, info, source, open_drive, load, core, create, update, remove, export_to }
-  return api
+  const api = { root, close, list, get, find, info, source, open_drive, load, core, create, update, remove, export_to }
 
-  async function open () {
-    await fsp.mkdir(root, { recursive: true, mode: 0o700 })
-    registry = Object.assign(Object.create(null), await read_json(path.join(root, 'pkgs.json')))
-  }
+  await fsp.mkdir(root, { recursive: true, mode: 0o700 })
+  const registry = Object.assign(Object.create(null), await read_json(path.join(root, 'pkgs.json')))
+  return api
 
   // The shared store, opened the first time a drive is touched. Reading names never
   // opens it, so inspecting works while a running bot holds its lock.

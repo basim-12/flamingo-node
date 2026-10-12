@@ -9,10 +9,8 @@ const process = require('bare-process')
 const packs = require('./packs')
 const tasks = require('./tasks')
 
-const pkgs = packs()
-const bots = tasks(pkgs)
-await pkgs.open()
-await bots.open()
+const pkgs = await packs()
+const bots = await tasks(pkgs)
 await bots.create('alice', 'flamingo-node/generate?ask=no', process.cwd())
 const { done } = await bots.start('alice', console.log) // and into the task's log core
 // … later, from this process:
@@ -62,11 +60,11 @@ Next to the packs' storage under the same root:
 
 ## API
 
-`tasks(pkgs)` returns an object with the functions below.
+`await tasks(pkgs)` reads `bots.json` and returns an object with the functions below.
+Reading the names needs no store, so it works while a running task holds one.
 
 | Function | What it does |
 | --- | --- |
-| `open()` | Read `bots.json`. Needs no store, so it works while a running task holds one. |
 | `close()` | Wait for pending saves. |
 | `list()` | Task names, sorted. |
 | `get(name)` | The task's drive reference, or `undefined`. |
