@@ -17,11 +17,23 @@ Node command and works anywhere.
 ## CLI Reference
 
 ```text
-fw up                    # Auto-creates env.json, installs docker, builds & runs
-fw up --attach           # Start and steam logs to terminal
-fw up --run <file.json>  # Start and run a network scenario
-fw up --shutdown         # Cleanly stop nodes and remove the container
+fw up                    # Start the node in the background
+fw up --attach           # Start it in this terminal and stream its output
+fw up --run <file.json>  # Start it and run a network scenario
+fw up --shutdown         # Cleanly stop the nodes
 ```
+
+`fw` runs the node as a **datashell bot**, using the same api as the generic drive and bot
+CLI in [`scripts/`](scripts/README.md), so both see the same thing. The first `fw up`
+registers the code package `flamingo-node` (built by `lib/build.js`) and a bot named
+`flamingo`, whose own drive holds the wallet that becomes the node's identity. After that,
+`cli bot flamingo` reports its status, `cli bot flamingo --log` prints everything it has
+logged, and `cli bot flamingo --end` stops it exactly as `fw up --shutdown` does.
+
+Two consequences of running as a bot. A background `fw up` returns as soon as the bot is
+running and its output goes to the bot's log core, which cannot be read while the bot holds
+the drive storage, so use `fw up --attach` when you want to watch it start. And while the
+node runs, commands that need that storage, such as `cli pkg +<name>`, are refused.
 
 ## Programmatic API
 

@@ -62,6 +62,15 @@ test('fw has no pkg or bot commands', async t => {
   t.absent(result.out.includes('pkg'), 'no mention of pkg')
 })
 
+// `fw` runs the node as a bot through the same runtime the generic cli uses, so there is
+// nothing to stop before anything has been registered.
+test('fw up --shutdown says so when no node has been started', async t => {
+  const result = await run('node', [path.join(repo, 'lib', 'cli.js'), 'up', '--shutdown'], repo)
+  t.is(result.code, 0)
+  t.is(result.out, 'Flamingo is not running.')
+  t.absent(fs.existsSync(path.join(home, '.ds', 'bots.json')), 'and it registered nothing')
+})
+
 // lib/drive is Flamingo's code package for the bot cli: a generator that makes an
 // identity, and an entry that runs the node with it. lib/build.js assembles the drive,
 // so the Docker setup comes from the pinned flamingo-docker dependency as installed,

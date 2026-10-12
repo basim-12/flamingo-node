@@ -21,7 +21,7 @@ async function main () {
   const ds = await runtime()
   try {
     const result = await command(ds, cmd, process.cwd())
-    console.log(result.done ? await foreground(result) : result)
+    console.log(result.done ? await runtime.foreground(result) : result)
   } finally {
     await ds.close()
   }
@@ -81,19 +81,6 @@ async function command (ds, { kind, action, name, source }, cwd) {
     return `Deleted: ${name}`
   }
   return ds.bot.info(name)
-}
-
-// Hold a running bot in this terminal until it finishes. Ctrl+C sends SIGINT and
-// `cli bot <name> --end` sends SIGTERM; either one stops it.
-async function foreground ({ done, stop }) {
-  process.on('SIGINT', () => stop())
-  process.on('SIGTERM', () => stop())
-  const keep_alive = setInterval(() => {}, 1 << 30)
-  try {
-    return await done
-  } finally {
-    clearInterval(keep_alive)
-  }
 }
 
 main()
