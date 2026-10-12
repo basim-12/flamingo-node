@@ -1,0 +1,8 @@
+{
+  "name": "flamingo-node-drive",
+  "private": true,
+  "dependencies": {
+    "bare-ws": "3.1.0",
+    "bip39-mnemonic": "2.5.0"
+  }
+}

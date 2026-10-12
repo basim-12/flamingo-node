@@ -7,7 +7,7 @@
 // Everything here is about the CLI itself, so the code it runs is a throwaway
 // sample made below, never Flamingo's. Flamingo's own tests are in ../docs.js.
 //
-// The CLI keeps everything under ~/.flamingo. The tests point HOME at a throwaway
+// The CLI keeps everything under ~/.ds. The tests point HOME at a throwaway
 // folder, so real packages and bots are never touched.
 
 const { test, hook } = require('brittle')
@@ -202,7 +202,7 @@ test('drive code runs straight from the drive; dynamic import() is refused', asy
   t.is((await cli('pkg', '+sneaky-code', code)).code, 0)
   const result = await cli('pkg', '+sneaky', 'sneaky-code/generate')
   t.ok(result.err.startsWith('Dynamic import is disabled'), 'refused')
-  t.absent(fs.existsSync(path.join(home, '.flamingo', 'code')), 'no code was copied to disk')
+  t.absent(fs.existsSync(path.join(home, '.ds', 'code')), 'no code was copied to disk')
 })
 
 // The one-step way to make a bot: run the generator and register the result.
@@ -257,7 +257,7 @@ test('bot <name> --log is what the bot logged, run after run', async t => {
   const first = await cli('bot', 'alice', '--log')
   t.ok(first.out.includes('sample started'), 'what the entry logged')
   t.ok(first.out.includes('sample stopping'), 'including its clean shutdown')
-  t.absent(fs.existsSync(path.join(home, '.flamingo', 'run', 'alice.log')), 'no log file anywhere')
+  t.absent(fs.existsSync(path.join(home, '.ds', 'run', 'alice.log')), 'no log file anywhere')
 
   t.is((await cli('bot', 'alice', '--run')).code, 0)
   const while_running = await cli('bot', 'alice', '--log')
@@ -335,6 +335,29 @@ test('packs module: package operations as plain functions', async t => {
   await pkgs.remove(link)
   t.alike(pkgs.list(), [], 'removed')
   await pkgs.close()
+})
+
+// A drive may require the runtime (bare-fs, bare-path, bare-subprocess, ...) and whatever
+// else it lists in its own package.json, nothing more. A listed module has to be installed
+// where datashell runs, and it says so by name when it isn't. Requiring something the
+// drive never listed doesn't link at all, because reading a drive is asynchronous and
+// linking is not.
+test('a drive lists the modules it needs in its package.json', async t => {
+  const fixture = (name, deps) => {
+    const folder = path.join(home, name)
+    fs.mkdirSync(folder)
+    fs.writeFileSync(path.join(folder, 'generate.js'), "require('bare-ws')\nmodule.exports = async function (drive) {}\n")
+    if (deps) fs.writeFileSync(path.join(folder, 'package.json'), JSON.stringify({ dependencies: deps }))
+    return folder
+  }
+  t.is((await cli('pkg', '+listed', fixture('listed-code', { 'bare-ws': '3.1.0' }))).code, 0)
+  t.is((await cli('pkg', '+from-listed', 'listed/generate')).code, 0, 'the module it listed is there')
+
+  t.is((await cli('pkg', '+absent', fixture('absent-code', { 'no-such-module': '1.0.0' }))).code, 0)
+  t.is((await cli('pkg', '+from-absent', 'absent/generate')).err, 'This drive needs no-such-module, which is not installed here')
+
+  t.is((await cli('pkg', '+unlisted', fixture('unlisted-code', null))).code, 0)
+  t.is((await cli('pkg', '+from-unlisted', 'unlisted/generate')).code, 1, 'an unlisted module is not provided')
 })
 
 // The bot commands are a thin layer over the tasks module (tasks/README.md), built

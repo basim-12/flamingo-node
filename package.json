@@ -27,7 +27,7 @@
   },
   "scripts": {
     "cli": "node lib/cli.js",
-    "backup:poc": "bare scripts/hyperdrive-poc.js",
+    "backup:poc": "bare lib/hyperdrive-poc.js",
     "docs": "bare scripts/docs.js",
     "docs:flamingo": "bare docs.js",
     "lint": "standardx --fix --eslint"

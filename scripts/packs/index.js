@@ -12,16 +12,17 @@ const id_encoding = require('hypercore-id-encoding')
 const acorn = require('acorn')
 const walk = require('acorn-walk')
 
-const ROOT = path.join(os.homedir(), '.flamingo')
+const ROOT = path.join(os.homedir(), '.ds')
 const LINK = /^dat:\/\/(\d+)\.(\d+)\.([a-z0-9]+)\.([a-f0-9]{64})(\/[^?]*)?(?:\?(.*))?$/
-// Modules that code loaded from a drive may require
-const RUNTIME = ['bare-process', 'bare-path', 'bare-fs', 'bare-os', 'bare-crypto', 'bare-subprocess', 'bare-url', 'bip39-mnemonic', 'bare-ws']
+// Modules any drive may require: the runtime itself. Anything else a drive needs, it
+// declares in its own package.json.
+const RUNTIME = ['bare-process', 'bare-path', 'bare-fs', 'bare-os', 'bare-crypto', 'bare-subprocess', 'bare-url']
 
 module.exports = packs
 packs.reference = reference
 packs.drive_link = drive_link
 
-async function packs (root = ROOT) {
+async function packs(root = ROOT) {
   let corestore = null
   let saving = Promise.resolve()
   const api = { root, close, list, get, find, info, source, open_drive, load, core, create, update, remove, export_to }
@@ -32,7 +33,7 @@ async function packs (root = ROOT) {
 
   // The shared store, opened the first time a drive is touched. Reading names never
   // opens it, so inspecting works while a running bot holds its lock.
-  async function drives () {
+  async function drives() {
     if (corestore === null) {
       corestore = new Corestore(path.join(root, 'corestore'))
       await corestore.ready().catch(err => {
@@ -42,36 +43,36 @@ async function packs (root = ROOT) {
     return corestore
   }
 
-  async function close () {
+  async function close() {
     await saving
     if (corestore !== null) await corestore.close()
   }
 
   // A plain hypercore in its own namespace, for what a task keeps outside its drive.
-  async function core (namespace, name) {
+  async function core(namespace, name) {
     return (await drives()).namespace(namespace).get({ name })
   }
 
-  function save () {
+  function save() {
     saving = saving.then(() => write_json(path.join(root, 'pkgs.json'), registry))
     return saving
   }
 
-  function list () {
+  function list() {
     return Object.keys(registry).sort()
   }
 
-  function get (name) {
+  function get(name) {
     return registry[name]
   }
 
   // The package name registered for the drive behind `link`, if there is one.
-  function find (link) {
+  function find(link) {
     const { id } = reference(link)
     return list().find(name => reference(registry[name]).id === id)
   }
 
-  function info (name) {
+  function info(name) {
     if (!registry[name]) throw new Error(`Unknown package: ${name}`)
     return `Name: ${name}\nDrive: ${registry[name]}`
   }
@@ -79,7 +80,7 @@ async function packs (root = ROOT) {
   // Resolve a <specifier>: a local folder or file (`./x`, `../x`, `/x`), a dat://
   // reference, a package name or a drive id, each optionally followed by /<file> to
   // run a generator. A path says so, so the forms never overlap.
-  async function source (spec, cwd) {
+  async function source(spec, cwd) {
     const q = spec.indexOf('?')
     const base = q < 0 ? spec : spec.slice(0, q)
     const options = Object.fromEntries(new URLSearchParams(q < 0 ? '' : spec.slice(q + 1)))
@@ -112,7 +113,7 @@ async function packs (root = ROOT) {
 
   // Open the drive behind `link`. Pinned: a read-only view at exactly that revision,
   // with its hash checked. Not pinned: the live drive.
-  async function open_drive (link, pinned = true) {
+  async function open_drive(link, pinned = true) {
     const ref = reference(link)
     const store = await drives()
     if (!(await known(store, ref.id))) throw new Error(`Drive is not available locally: ${ref.id}`)
@@ -130,7 +131,7 @@ async function packs (root = ROOT) {
   // Load the function a generator or entry file exports, reading the code straight
   // from its drive at the pinned revision (or from its local folder); nothing is
   // copied to disk. `code` is the drive's pinned reference.
-  async function load (from) {
+  async function load(from) {
     let drive
     let file
     let code = null
@@ -157,7 +158,7 @@ async function packs (root = ROOT) {
   // Make a new named drive from a <specifier>: copy a folder or drive, or run a
   // generator into it. `prepare(drive, code)` runs after that and before the drive
   // is registered; `code` is the generator's pinned drive reference, if any.
-  async function create (name, spec, cwd, { namespace = 'pkg', prepare } = {}) {
+  async function create(name, spec, cwd, { namespace = 'pkg', prepare } = {}) {
     if (registry[name]) throw new Error(`Package already exists: ${name}`)
     const from = await source(spec, cwd)
     const store = await drives()
@@ -187,7 +188,7 @@ async function packs (root = ROOT) {
   }
 
   // Point every package on this drive at its latest saved revision.
-  async function update (drive) {
+  async function update(drive) {
     const link = await drive_link(drive)
     for (const name of list()) if (reference(registry[name]).id === drive.id) registry[name] = link
     await save()
@@ -195,7 +196,7 @@ async function packs (root = ROOT) {
   }
 
   // Delete the drive behind `link` and every package name registered for it.
-  async function remove (link) {
+  async function remove(link) {
     const { id } = reference(link)
     const opened = await open_drive(link, false)
     await purge(opened.drive)
@@ -204,7 +205,7 @@ async function packs (root = ROOT) {
   }
 
   // Copy a package's latest files into a new folder outside managed storage.
-  async function export_to (name, folder, cwd) {
+  async function export_to(name, folder, cwd) {
     if (!registry[name]) throw new Error(`Unknown package: ${name}`)
     const dest = path.resolve(cwd, folder)
     const real = path.join(await fsp.realpath(path.dirname(dest)), path.basename(dest))
@@ -217,12 +218,12 @@ async function packs (root = ROOT) {
 
 // Evaluate a module graph read straight from drive with bare module's Loader.
 // Every file goes through the drive. The runtime modules come in as builtins.
-async function run_from (drive, file) {
+async function run_from(drive, file) {
   const protocol = new Module.Protocol({
-    async exists (url) {
+    async exists(url) {
       return (await drive.entry(url.pathname)) !== null
     },
-    async read (url) {
+    async read(url) {
       const data = await drive.get(url.pathname)
       if (!url.pathname.endsWith('.js')) return data
       const source = data.toString()
@@ -230,37 +231,54 @@ async function run_from (drive, file) {
       return source
     }
   })
-  const builtins = Object.fromEntries(RUNTIME.map(name => [name, require(name)]))
-  const loader = new Module.Loader({ protocol, builtins, defaultType: Module.constants.SCRIPT })
+  const loader = new Module.Loader({ protocol, builtins: await modules_for(drive), defaultType: Module.constants.SCRIPT })
   return loader.import(new URL('drive://' + file))
 }
 
+// What code in a drive may require: the runtime, plus what the drive's own package.json
+// asks for. Those have to be installed where this runs, so a drive says what it needs and
+// finds out at startup if it isn't here.
+async function modules_for(drive) {
+  const builtins = Object.fromEntries(RUNTIME.map(name => [name, require(name)]))
+  const manifest = await drive.get('/package.json')
+  for (const name of Object.keys(manifest ? JSON.parse(manifest).dependencies || {} : {})) {
+    if (builtins[name]) continue
+    try {
+      builtins[name] = require(name) // The host process resolves the name against its own node_modules.  
+    } catch (err) {
+      if (err.code !== 'MODULE_NOT_FOUND') throw err
+      throw new Error(`This drive needs ${name}, which is not installed here`)
+    }
+  }
+  return builtins
+}
+
 // A dynamic import() would load code around the Loader, so drive code may not use it.
-function validate_cjs (source, url) {
+function validate_cjs(source, url) {
   const ast = acorn.parse(source, { ecmaVersion: 'latest', sourceType: 'script' })
   walk.simple(ast, {
-    ImportExpression () {
+    ImportExpression() {
       throw new SyntaxError(`Dynamic import is disabled: ${url.href}`)
     }
   })
 }
 
-function reference (link) {
+function reference(link) {
   const m = LINK.exec(link)
   if (!m) throw new Error(`Invalid pinned drive reference: ${link}`)
   return { length: Number(m[1]), fork: Number(m[2]), id: m[3], hash: m[4], file: m[5] || '', options: Object.fromEntries(new URLSearchParams(m[6] || '')) }
 }
 
-async function drive_link (drive) {
+async function drive_link(drive) {
   const hash = await drive.core.treeHash(drive.core.length)
   return `dat://${drive.core.length}.${drive.core.fork}.${drive.id}.${hash.toString('hex')}`
 }
 
 // MirrorDrive copies bytes; the metadata hooks keep empty folders and permissions.
-async function import_folder (drive, folder) {
+async function import_folder(drive, folder) {
   const metadata = new Map()
   const dirs = []
-  async function walk (relative = '') {
+  async function walk(relative = '') {
     for (const item of await fsp.readdir(path.join(folder, relative), { withFileTypes: true })) {
       const key = relative + '/' + item.name
       const stat = await fsp.lstat(path.join(folder, key))
@@ -277,7 +295,7 @@ async function import_folder (drive, folder) {
   for (const key of dirs) await drive.put(key, Buffer.alloc(0), { metadata: { ...metadata.get(key), directory: true } })
 }
 
-async function export_folder (drive, folder) {
+async function export_folder(drive, folder) {
   await fsp.mkdir(folder, { mode: 0o700 })
   try {
     const dirs = []
@@ -302,7 +320,7 @@ async function export_folder (drive, folder) {
 
 // Whether a drive's data is already here. Corestore has no "do you have this?" call, so
 // open its core without letting it be created: a missing one says so on ready().
-async function known (store, id) {
+async function known(store, id) {
   const core = store.get({ key: id_encoding.decode(id), createIfMissing: false })
   try {
     await core.ready()
@@ -315,7 +333,7 @@ async function known (store, id) {
 }
 
 // Delete a drive's data: the files it holds and the metadata that lists them.
-async function purge (drive) {
+async function purge(drive) {
   await drive.ready()
   const blobs = await drive.getBlobs()
   await drive.close()
@@ -323,7 +341,7 @@ async function purge (drive) {
   await drive.core.purge()
 }
 
-async function exists (file) {
+async function exists(file) {
   try {
     await fsp.lstat(file)
     return true
@@ -333,7 +351,7 @@ async function exists (file) {
   }
 }
 
-async function read_json (file) {
+async function read_json(file) {
   try {
     return JSON.parse(await fsp.readFile(file, 'utf8'))
   } catch (err) {
@@ -343,7 +361,7 @@ async function read_json (file) {
 }
 
 // Write to a temporary file and rename it, so a crash never leaves half a registry.
-async function write_json (file, data) {
+async function write_json(file, data) {
   const temp = file + '.' + uuid()
   try {
     await fsp.writeFile(temp, JSON.stringify(data, null, 2) + '\n', { mode: 0o600, flag: 'wx' })
@@ -351,10 +369,10 @@ async function write_json (file, data) {
   } finally { await fsp.rm(temp, { force: true }) }
 }
 
-function inside (root, target) {
+function inside(root, target) {
   return target === root || target.startsWith(root + path.sep)
 }
 
-function uuid () {
+function uuid() {
   return crypto.randomBytes(16).toString('hex')
 }

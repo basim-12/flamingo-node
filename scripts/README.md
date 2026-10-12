@@ -129,7 +129,7 @@ the shared Corestore, which it reopens and adds to on every run; there is no log
 running bot holds, so the log is readable once the bot has stopped.
 `cli bot <name> --run --attach` runs it in this terminal instead, until
 Ctrl+C, and prints the same lines as it appends them. Either way a running bot writes
-`~/.flamingo/run/<name>.pid` and holds the shared Corestore. `cli bot`,
+`~/.ds/run/<name>.pid` and holds the shared Corestore. `cli bot`,
 `cli bot <name> --see` and `cli bot <name> --end` don't
 open the store, so they work while a bot runs; `--end` sends the bot's process a
 termination signal and waits for it to stop. Package changes (`cli pkg +`/`-`,
@@ -168,7 +168,7 @@ worked example of what a real generator and entry look like.
 ## Storage and shared behavior
 
 ```text
-~/.flamingo/
+~/.ds/
 ├── pkgs.json       # { "<package-name>": "dat://...", ... }
 ├── bots.json       # { "<bot-name>": "dat://...", ... }
 ├── corestore/      # Shared persistent drive storage, and each bot's log core

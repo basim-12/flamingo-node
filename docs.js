@@ -71,7 +71,7 @@ test('the flamingo drive carries the code and the pinned docker dependency', asy
   t.is(created.code, 0, created.err)
   code_link = drive_of(created)
   const folder = await export_pkg('flamingo-node')
-  t.alike(fs.readdirSync(folder).sort(), ['flamingo-docker', 'generate.js', 'main.js'])
+  t.alike(fs.readdirSync(folder).sort(), ['flamingo-docker', 'generate.js', 'main.js', 'package.json'])
   t.alike(fs.readdirSync(path.join(folder, 'flamingo-docker')).sort(),
     fs.readdirSync(path.join(repo, 'node_modules', 'flamingo-docker')).sort(), 'as installed')
 })
