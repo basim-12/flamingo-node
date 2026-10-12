@@ -9,8 +9,6 @@ const Hyperdrive = require('hyperdrive')
 const Localdrive = require('localdrive')
 const MirrorDrive = require('mirror-drive')
 const id_encoding = require('hypercore-id-encoding')
-const core_crypto = require('hypercore-crypto')
-const storage_keys = require('hypercore-storage/lib/keys')
 const acorn = require('acorn')
 const walk = require('acorn-walk')
 
@@ -41,7 +39,7 @@ function packs (root = ROOT) {
     if (corestore === null) {
       corestore = new Corestore(path.join(root, 'corestore'))
       await corestore.ready().catch(err => {
-        throw /could not be locked/i.test(err.message) ? new Error('Drive storage is in use by another process, such as a running bot') : err
+        throw err.code === 'ELOCKED' ? new Error('Drive storage is in use by another process, such as a running bot') : err
       })
     }
     return corestore
@@ -101,10 +99,10 @@ function packs (root = ROOT) {
     const file = parts.length ? '/' + parts.join('/') : ''
     if (registry[head]) return { link: registry[head], file, options }
     if (id_encoding.isValid(head)) {
-      const known = Object.values(registry).find(link => reference(link).id === head)
-      if (known) return { link: known, file, options }
+      const registered = Object.values(registry).find(link => reference(link).id === head)
+      if (registered) return { link: registered, file, options }
       const store = await drives()
-      if (await store.storage.getAuth(core_crypto.discoveryKey(id_encoding.decode(head)))) {
+      if (await known(store, head)) {
         const drive = new Hyperdrive(store.session(), head)
         try {
           await drive.ready()
@@ -120,7 +118,7 @@ function packs (root = ROOT) {
   async function open_drive (link, pinned = true) {
     const ref = reference(link)
     const store = await drives()
-    if (!(await store.storage.getAuth(core_crypto.discoveryKey(id_encoding.decode(ref.id))))) throw new Error(`Drive is not available locally: ${ref.id}`)
+    if (!(await known(store, ref.id))) throw new Error(`Drive is not available locally: ${ref.id}`)
     const drive = new Hyperdrive(store.session(), ref.id)
     await drive.ready()
     try {
@@ -186,7 +184,7 @@ function packs (root = ROOT) {
       return registry[name]
     } catch (err) {
       delete registry[name]
-      await purge(store, drive)
+      await purge(drive)
       throw err
     } finally { await drive.close() }
   }
@@ -203,7 +201,7 @@ function packs (root = ROOT) {
   async function remove (link) {
     const { id } = reference(link)
     const opened = await open_drive(link, false)
-    await purge(await drives(), opened.drive)
+    await purge(opened.drive)
     for (const name of list()) if (reference(registry[name]).id === id) delete registry[name]
     await save()
   }
@@ -305,24 +303,27 @@ async function export_folder (drive, folder) {
   }
 }
 
-// Delete one drive's cores from the shared store, never the store itself. Tied to
-// hypercore-storage's layout, so it refuses to run against a different version.
-async function purge (store, drive) {
-  if (require('hypercore-storage/package.json').version !== '3.2.1') throw new Error('Review purge compatibility before upgrading hypercore-storage')
-  await drive.ready()
-  const keys = [drive.core.discoveryKey, drive.blobs?.core.discoveryKey].filter(Boolean)
-  const records = []
-  for await (const record of store.storage.createCoreStream()) if (keys.some(key => key.equals(record.discoveryKey))) records.push(record)
-  await drive.close()
-  const tx = store.storage.db.write({ autoDestroy: true })
-  for (const record of records) {
-    const core = record.core
-    tx.tryDelete(storage_keys.store.core(record.discoveryKey))
-    if (core.alias) tx.tryDelete(storage_keys.store.coreByAlias(core.alias))
-    tx.tryDeleteRange(storage_keys.core.core(core.corePointer), storage_keys.core.core(core.corePointer + 1))
-    tx.tryDeleteRange(storage_keys.core.data(core.dataPointer), storage_keys.core.data(core.dataPointer + 1))
+// Whether a drive's data is already here. Corestore has no "do you have this?" call, so
+// open its core without letting it be created: a missing one says so on ready().
+async function known (store, id) {
+  const core = store.get({ key: id_encoding.decode(id), createIfMissing: false })
+  try {
+    await core.ready()
+  } catch (err) {
+    if (err.code !== 'STORAGE_EMPTY') throw err
+    return false
   }
-  await tx.flush()
+  await core.close()
+  return true
+}
+
+// Delete a drive's data: the files it holds and the metadata that lists them.
+async function purge (drive) {
+  await drive.ready()
+  const blobs = await drive.getBlobs()
+  await drive.close()
+  await blobs.core.purge()
+  await drive.core.purge()
 }
 
 async function exists (file) {

@@ -312,10 +312,13 @@ test('bot -<name> deletes the bot and its drive, keeping the code', async t => {
   t.is(drive_of(await cli('pkg', 'sample')), code_link, 'code package kept')
 })
 
-// Deleting a package removes it and its local data, freeing the name.
+// Deleting a package removes it and its local data, freeing the name. Once the data is
+// gone the drive is no longer a source: nothing local answers for that id any more.
 test('pkg -<name> deletes a package', async t => {
+  const id = parts_of(drive_of(await cli('pkg', 'by-name'))).id
   t.is((await cli('pkg', '-by-name')).out, 'Deleted: by-name')
   t.is((await cli('pkg', 'by-name')).code, 1)
+  t.is((await cli('pkg', '+gone', id)).err, `Unknown package or source: ${id}`, 'its data is gone too')
   t.is((await cli('pkg', '+by-name', 'sample')).code, 0, 'name is free again')
 })
 
