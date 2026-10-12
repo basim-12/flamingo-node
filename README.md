@@ -38,12 +38,22 @@ await running()                          // is the container up?
 await down()                             // same as `fw up --shutdown`
 ```
 
-It throws on failure rather than exiting, so the caller decides what to do. The Docker
-layer underneath it loads under both Node and Bare: the `imports` map in `package.json`
-points `child_process`, `fs`, `os`, `path` and `process` at the `bare-*` packages when
-Bare resolves them, and Node ignores the map because its keys don't start with `#`. The
-container entrypoint (`fw start`) stays Node-only, since bitcoind, lightningd and the
-WebSocket daemon need it.
+It throws on failure rather than exiting, so the caller decides what to do.
+
+## Runtimes
+
+The host side runs on Bare; only the container entrypoint stays on Node.
+
+| File | Runtime | Job |
+| --- | --- | --- |
+| `lib/cli.js` | Node | What `fw` points at. Forwards the command line to Bare using the runtime npm installed, so a `#!/usr/bin/env node` shebang is enough on machines without `bare` on PATH. |
+| `lib/fw.js` | Bare | The host CLI: reads the arguments and calls the api. |
+| `lib/flamingo.js`, `lib/docker-run.js`, `lib/docker-install.js`, `lib/exec.js`, `lib/scenario-runner.js` | both | The api and the Docker layer. The `imports` map in `package.json` points `child_process`, `fs`, `os`, `path` and `process` at the `bare-*` packages when Bare resolves them; Node ignores the map because its keys don't start with `#`. |
+| `lib/start.js` | Node | The container entrypoint, which `fw start` runs directly. bitcoind, lightningd and the WebSocket daemon need Node, so nothing on this path goes through Bare. |
+
+`bare-subprocess` has no `exec`, `execFile` or `execSync`, so the shared code uses `spawn`
+and `spawnSync` only (`lib/exec.js`), and it reads output as bytes because `spawnSync`
+ignores `encoding` under Bare.
 
 ## How is `fw start/stop` different from `fw up/down`?
 
