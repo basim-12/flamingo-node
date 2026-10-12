@@ -89,6 +89,7 @@ async function tasks (pkgs) {
   // `print` shows a line to whoever started it; every line is also appended to the
   // task's log core, which outlives the run.
   async function start (name, print) {
+    if (!registry[name]) throw new Error(`Unknown bot: ${name}`)
     if (busy(registry[name])) throw new Error('This bot is already running')
     const opened = await pkgs.open_drive(registry[name], false)
     let entry
@@ -152,6 +153,7 @@ async function tasks (pkgs) {
   // Stop a running task: directly if it runs in this process, otherwise by
   // signalling the process that runs it and waiting for it to exit.
   async function end (name) {
+    if (!registry[name]) throw new Error(`Unknown bot: ${name}`)
     const local = running.get(name)
     if (local) {
       local.stop()

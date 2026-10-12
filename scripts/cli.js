@@ -1,8 +1,6 @@
 #!/usr/bin/env bare
 const process = require('bare-process')
-const { spawn: daemon } = require('bare-daemon')
-const packs = require('./packs')
-const tasks = require('./tasks')
+const runtime = require('./runtime')
 
 const NAME = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/
 const usage = `Usage:
@@ -20,14 +18,12 @@ Details: scripts/README.md#specifiers`
 async function main () {
   const cmd = parse(process.argv.slice(2))
   if (cmd.action === 'help') return console.log(usage)
-  const pkgs = await packs()
-  const bots = await tasks(pkgs)
+  const ds = await runtime()
   try {
-    const result = await command(pkgs, bots, cmd, process.cwd())
+    const result = await command(ds, cmd, process.cwd())
     console.log(result.done ? await foreground(result) : result)
   } finally {
-    await bots.close()
-    await pkgs.close()
+    await ds.close()
   }
 }
 
@@ -56,57 +52,35 @@ function parse (args) {
   throw new Error(usage)
 }
 
-// Call the packs or tasks function the command asks for, and return what to print.
-async function command (pkgs, bots, { kind, action, name, source }, cwd) {
+// Call the runtime function the command asks for, and return what to print.
+async function command (ds, { kind, action, name, source }, cwd) {
   if (kind === 'pkg') {
-    if (action === 'list') return pkgs.list().map(pkgs.info).join('\n\n') || 'No pkgs.'
-    if (action === 'create') await pkgs.create(name, source, cwd)
-    if (action === 'export') return pkgs.info(name) + '\nExported to: ' + await pkgs.export_to(name, source, cwd)
+    if (action === 'list') return ds.pkg.list().map(ds.pkg.info).join('\n\n') || 'No pkgs.'
+    if (action === 'create') await ds.pkg.create(name, source, cwd)
+    if (action === 'export') return ds.pkg.info(name) + '\nExported to: ' + await ds.pkg.export_to(name, source, cwd)
     if (action === 'delete') {
-      if (!pkgs.get(name)) throw new Error(`Unknown package: ${name}`)
-      await bots.remove(pkgs.get(name))
+      await ds.pkg.remove(name)
       return `Deleted: ${name}`
     }
-    return pkgs.info(name)
+    return ds.pkg.info(name)
   }
-  if (action === 'list') return bots.list().map(bots.info).join('\n\n') || 'No bots.'
+  if (action === 'list') return ds.bot.list().map(ds.bot.info).join('\n\n') || 'No bots.'
   if (action === 'create') {
-    await bots.create(name, source, cwd)
-    return bots.info(name)
+    await ds.bot.create(name, source, cwd)
+    return ds.bot.info(name)
   }
-  if (!bots.get(name)) throw new Error(`Unknown bot: ${name}`)
-  if (action === 'run') return background(pkgs, bots, name)
-  if (action === 'attach') return bots.start(name, line => console.log(line))
-  if (action === 'log') return await bots.read_log(name) || 'This bot has logged nothing.'
-  if (action === 'end') await bots.end(name)
+  if (action === 'run') {
+    await ds.bot.run(name)
+    return ds.bot.info(name) + `\nRunning in the background. Its log: cli bot ${name} --log`
+  }
+  if (action === 'attach') return ds.bot.attach(name, line => console.log(line))
+  if (action === 'log') return await ds.bot.log(name) || 'This bot has logged nothing.'
+  if (action === 'end') await ds.bot.end(name)
   if (action === 'delete') {
-    await bots.remove(bots.get(name))
+    await ds.bot.remove(name)
     return `Deleted: ${name}`
   }
-  return bots.info(name)
-}
-
-// Start a bot as a daemon: this CLI again with --run --attach, in its own session so
-// it outlives this process and the terminal. The bot logs to its own hypercore, so
-// nothing is piped back here. Return once it is running; if it dies before that, read
-// what it logged, which the dead bot has now released.
-async function background (pkgs, bots, name) {
-  if (bots.busy(bots.get(name))) throw new Error('This bot is already running')
-  const { pid } = daemon(process.execPath, [__filename, 'bot', name, '--run', '--attach'])
-  while (!bots.busy(bots.get(name))) {
-    if (!alive(pid)) throw new Error(await bots.read_log(name))
-    await new Promise(resolve => setTimeout(resolve, 100))
-  }
-  return bots.info(name) + `\nRunning in the background. Its log: cli bot ${name} --log`
-}
-
-function alive (pid) {
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch {
-    return false
-  }
+  return ds.bot.info(name)
 }
 
 // Hold a running bot in this terminal until it finishes. Ctrl+C sends SIGINT and

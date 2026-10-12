@@ -18,6 +18,7 @@ const process = require('bare-process')
 const { spawn } = require('bare-subprocess')
 const packs = require('./packs')
 const tasks = require('./tasks')
+const runtime = require('./runtime')
 
 const repo = path.join(__dirname, '..')
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'cli-docs-'))
@@ -356,6 +357,27 @@ test('tasks module: start a task, let it save, stop it', async t => {
   t.is(fs.readFileSync(path.join(folder, 'data.txt'), 'utf8'), 'saved while running')
   await bots.close()
   await pkgs.close()
+})
+
+// cli.js only reads the command line; the work is in runtime.js (one api over packs and
+// tasks), so another command line tool can do the same things to the same storage without
+// going through argument parsing. Here is a package, a bot, its run and its log, as calls.
+test('runtime module: the cli as plain functions', async t => {
+  const ds = await runtime(path.join(home, 'runtime-api'))
+  await ds.pkg.create('code', sample, repo)
+  await ds.bot.create('hello', 'code/generate', repo)
+  t.alike([ds.pkg.list(), ds.bot.list()], [['code', 'hello'], ['hello']], 'a code package, a bot, and the bot drive registered too')
+
+  const run = await ds.bot.attach('hello', () => {})
+  t.ok(ds.bot.info('hello').includes('Status: running'), 'running')
+  await ds.bot.end('hello')
+  await run.done
+  t.ok((await ds.bot.log('hello')).includes('sample stopping'), 'its log core has what it printed')
+
+  await ds.bot.remove('hello')
+  t.alike(ds.bot.list(), [], 'bot gone')
+  t.is((await ds.bot.log('hello').catch(err => err.message)), 'Unknown bot: hello')
+  await ds.close()
 })
 
 unhook('remove the throwaway home folder', () => {
