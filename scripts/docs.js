@@ -251,8 +251,8 @@ test('bot <name> --run starts it in the background; --end stops it', async t => 
 })
 
 // A bot logs to a hypercore of its own, not to a file, and keeps appending to the same
-// one every time it runs. Reading it needs the drive storage, which a running bot holds,
-// so the log is readable once the bot has stopped.
+// one every time it runs. The daemon owns that storage and runs the bot inside itself, so
+// the log can be read while the bot is still running.
 test('bot <name> --log is what the bot logged, run after run', async t => {
   const first = await cli('bot', 'alice', '--log')
   t.ok(first.out.includes('sample started'), 'what the entry logged')
@@ -261,12 +261,27 @@ test('bot <name> --log is what the bot logged, run after run', async t => {
 
   t.is((await cli('bot', 'alice', '--run')).code, 0)
   const while_running = await cli('bot', 'alice', '--log')
-  t.is(while_running.err, 'Drive storage is in use by another process, such as a running bot')
+  t.ok(while_running.out.includes('sample started'), 'readable while the bot runs')
   await cli('bot', 'alice', '--end')
 
   const second = await cli('bot', 'alice', '--log')
   t.is(count(second.out, 'sample started'), 2, 'the second run appended to the same log')
   t.ok(second.out.startsWith(first.out), 'the first run is still there, unchanged')
+})
+
+// One daemon per storage root owns the drives and runs the bots, started by the first
+// command that needs it and gone once nothing is left to do. It is what makes the two
+// above work: commands no longer take the storage lock for themselves.
+test('the daemon owns the storage, so commands do not have to', async t => {
+  const pidfile = path.join(home, '.ds', 'ds.pid')
+  t.absent(fs.existsSync(pidfile), 'nothing running between commands')
+
+  t.is((await cli('bot', 'alice', '--run')).code, 0)
+  t.ok(fs.existsSync(pidfile), 'a running bot keeps it up')
+  t.is((await cli('pkg', '+while-running', sample)).code, 0, 'drives can still be made while a bot runs')
+
+  await cli('bot', 'alice', '--end')
+  t.ok(await until(() => !fs.existsSync(pidfile)), 'and it exits once nothing is left to do')
 })
 
 // --run --attach runs the bot in this terminal instead, until Ctrl+C (SIGINT).

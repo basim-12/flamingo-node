@@ -19,6 +19,7 @@ const LINK = /^dat:\/\/(\d+)\.(\d+)\.([a-z0-9]+)\.([a-f0-9]{64})(\/[^?]*)?(?:\?(
 const RUNTIME = ['bare-process', 'bare-path', 'bare-fs', 'bare-os', 'bare-crypto', 'bare-subprocess', 'bare-url']
 
 module.exports = packs
+packs.ROOT = ROOT
 packs.reference = reference
 packs.drive_link = drive_link
 

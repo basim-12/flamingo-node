@@ -1,15 +1,14 @@
-const path = require('bare-path')
 const process = require('bare-process')
-const { spawn: daemon } = require('bare-daemon')
 const packs = require('./packs')
 const tasks = require('./tasks')
 
 module.exports = runtime
 runtime.foreground = foreground
 
-// Everything the command line can do, as functions over packs and tasks. A custom cli
-// such as `fw` requires this and exposes its own opinionated subset, so both end up
-// doing the same things to the same storage.
+// Everything the command line can do, as functions over packs and tasks, in this process.
+// The daemon runs on top of this (daemon.js) and serves the same api to commands, which is
+// how `cli` and `fw` reach it; starting a task in the background is therefore its job, not
+// something this does.
 async function runtime (root) {
   const pkgs = await packs(root)
   const bots = await tasks(pkgs)
@@ -29,7 +28,6 @@ async function runtime (root) {
       info: bots.info,
       busy: name => bots.busy(bot_of(name)),
       create: bots.create,
-      run: background,
       attach: bots.start,
       end: bots.end,
       log: bots.read_log,
@@ -48,19 +46,6 @@ async function runtime (root) {
     if (!link) throw new Error(`Unknown bot: ${name}`)
     return link
   }
-
-  // Start a bot as a daemon: the generic cli with --run --attach, in its own session so
-  // it outlives this process and the terminal. The bot logs to its own hypercore, so
-  // nothing is piped back here. Return once it is running; if it dies before that, read
-  // what it logged, which the dead bot has now released.
-  async function background (name) {
-    if (bots.busy(bot_of(name))) throw new Error('This bot is already running')
-    const { pid } = daemon(process.execPath, [path.join(__dirname, 'cli.js'), 'bot', name, '--run', '--attach'])
-    while (!bots.busy(bots.get(name))) {
-      if (!alive(pid)) throw new Error(await bots.read_log(name) || 'This bot exited without logging anything')
-      await new Promise(resolve => setTimeout(resolve, 100))
-    }
-  }
 }
 
 // Hold a running task in this terminal until it finishes. Ctrl+C sends SIGINT and
@@ -73,14 +58,5 @@ async function foreground ({ done, stop }) {
     return await done
   } finally {
     clearInterval(keep_alive)
-  }
-}
-
-function alive (pid) {
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch {
-    return false
   }
 }

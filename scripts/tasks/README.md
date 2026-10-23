@@ -72,6 +72,6 @@ Reading the names needs no store, so it works while a running task holds one.
 | `busy(link)` | Whether any task on the drive behind `link` is running. |
 | `create(name, spec, cwd)` | Register a task. `spec` names a drive that already holds `bot.json`, or a generator in a drive (`<drive>/generate`). A generator fills a fresh drive, which is also registered as a pack under `name`, and `bot.json` is written for it. Refused if the drive already belongs to another task. Returns the drive's reference. |
 | `start(name, print)` | Run the task's entry in this process. Writes `run/<name>.pid`, appends everything the task logs to its log core, and keeps the task's and its packs' references on the latest revision as it saves data. Returns `{ done, stop }`: `done` settles once the task has finished. |
-| `read_log(name)` | Everything the task has logged, oldest first, across every run. Needs the store, so it only works once the task has stopped. |
+| `read_log(name)` | Everything the task has logged, oldest first, across every run. Needs the store, so it is read by whoever holds it, which is the daemon. |
 | `end(name)` | Stop a running task: directly if this process runs it, otherwise by signalling the process that does and waiting for it to exit. |
 | `remove(link)` | Delete a drive with every pack and task registered on it. Refused while a task on that drive runs. |

@@ -121,20 +121,14 @@ module.exports = async function (drive, { stopped, log }) {
 entry may instead return a cleanup
 function, which the CLI awaits after `stopped`.
 
-`cli bot <name> --run` starts the bot as a background daemon (using `bare-daemon`)
-and returns once it is running. The bot keeps running after the command and the
-terminal have gone. Everything it logs is appended to a hypercore of its own, kept in
-the shared Corestore, which it reopens and adds to on every run; there is no log file.
-`cli bot <name> --log` prints it, oldest first. Reading needs the store, which a
-running bot holds, so the log is readable once the bot has stopped.
-`cli bot <name> --run --attach` runs it in this terminal instead, until
-Ctrl+C, and prints the same lines as it appends them. Either way a running bot writes
-`~/.ds/run/<name>.pid` and holds the shared Corestore. `cli bot`,
-`cli bot <name> --see` and `cli bot <name> --end` don't
-open the store, so they work while a bot runs; `--end` sends the bot's process a
-termination signal and waits for it to stop. Package changes (`cli pkg +`/`-`,
-`cli bot +`/`-`) need the store and are refused while a bot is running. Bots only
-start when you run them; nothing starts them automatically.
+`cli bot <name> --run` starts the bot and returns once it is running. The bot keeps
+running after the command and the terminal have gone, because it runs inside the daemon
+(see below), not inside the command. Everything it logs is appended to a hypercore of its
+own, kept in the shared Corestore, which it reopens and adds to on every run; there is no
+log file. `cli bot <name> --log` prints it, oldest first, and works while the bot is still
+running. `cli bot <name> --run --attach` runs it in this terminal instead, until Ctrl+C,
+printing the same lines as it appends them; Ctrl+C stops the bot. Bots only start when you
+run them; nothing starts them automatically.
 
 | Command | Action and behavior |
 | --- | --- |
@@ -173,6 +167,29 @@ Generators).
 provide it inside a sandbox, with the CLI commands and JS calls it would add. Nothing in it
 is implemented.
 
+## The daemon
+
+One daemon per storage root owns the drive storage and runs the bots in it. Every command
+talks to it over a unix socket (`ds.sock`) rather than opening the storage itself, so two
+commands can work at the same time and a running bot locks nothing out: a package can be
+made while a bot runs, and a running bot's log can be read.
+
+The first command that needs it starts it, and it exits once nothing is left to do, meaning
+no command connected and no bot running. While it is up, `ds.pid` holds its pid. A daemon
+that crashed leaves its socket behind; the next one checks whether anything still answers
+there before taking over.
+
+Three files, one api:
+
+| File | What it is |
+| --- | --- |
+| [`runtime.js`](runtime.js) | The api over `packs` and `tasks`, in one process. What the daemon runs. |
+| [`daemon.js`](daemon.js) | Owns the storage, runs the bots, serves that api on the socket. |
+| [`remote.js`](remote.js) | The same api, over the daemon. What `cli` and `fw` use. |
+
+Because the bots run inside the daemon, they stop when it does. It stays up for as long as
+any of them is running.
+
 ## Storage and shared behavior
 
 ```text
@@ -180,6 +197,8 @@ is implemented.
 ├── pkgs.json       # { "<package-name>": "dat://...", ... }
 ├── bots.json       # { "<bot-name>": "dat://...", ... }
 ├── corestore/      # Shared persistent drive storage, and each bot's log core
+├── ds.sock         # where the daemon listens
+├── ds.pid          # the daemon's pid, while it is up
 └── run/            # <bot-name>.pid while it runs
 ```
 

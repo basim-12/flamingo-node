@@ -1,6 +1,7 @@
 #!/usr/bin/env bare
 const process = require('bare-process')
-const runtime = require('./runtime')
+const remote = require('./remote')
+const { foreground } = require('./runtime')
 
 const NAME = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/
 const usage = `Usage:
@@ -18,10 +19,10 @@ Details: scripts/README.md#specifiers`
 async function main () {
   const cmd = parse(process.argv.slice(2))
   if (cmd.action === 'help') return console.log(usage)
-  const ds = await runtime()
+  const ds = await remote()
   try {
     const result = await command(ds, cmd, process.cwd())
-    console.log(result.done ? await runtime.foreground(result) : result)
+    console.log(result.done ? await foreground(result) : result)
   } finally {
     await ds.close()
   }
@@ -55,24 +56,21 @@ function parse (args) {
 // Call the runtime function the command asks for, and return what to print.
 async function command (ds, { kind, action, name, source }, cwd) {
   if (kind === 'pkg') {
-    if (action === 'list') return ds.pkg.list().map(ds.pkg.info).join('\n\n') || 'No pkgs.'
+    if (action === 'list') return await listing(ds.pkg) || 'No pkgs.'
     if (action === 'create') await ds.pkg.create(name, source, cwd)
-    if (action === 'export') return ds.pkg.info(name) + '\nExported to: ' + await ds.pkg.export_to(name, source, cwd)
+    if (action === 'export') return await ds.pkg.info(name) + '\nExported to: ' + await ds.pkg.export_to(name, source, cwd)
     if (action === 'delete') {
       await ds.pkg.remove(name)
       return `Deleted: ${name}`
     }
     return ds.pkg.info(name)
   }
-  if (action === 'list') return ds.bot.list().map(ds.bot.info).join('\n\n') || 'No bots.'
+  if (action === 'list') return await listing(ds.bot) || 'No bots.'
   if (action === 'create') {
     await ds.bot.create(name, source, cwd)
     return ds.bot.info(name)
   }
-  if (action === 'run') {
-    await ds.bot.run(name)
-    return ds.bot.info(name) + `\nRunning in the background. Its log: cli bot ${name} --log`
-  }
+  if (action === 'run') return await ds.bot.run(name) + `\nRunning in the background. Its log: cli bot ${name} --log`
   if (action === 'attach') return ds.bot.attach(name, line => console.log(line))
   if (action === 'log') return await ds.bot.log(name) || 'This bot has logged nothing.'
   if (action === 'end') await ds.bot.end(name)
@@ -81,6 +79,11 @@ async function command (ds, { kind, action, name, source }, cwd) {
     return `Deleted: ${name}`
   }
   return ds.bot.info(name)
+}
+
+// Every package or bot there is, as the same info blocks the single name commands print.
+async function listing ({ list, info }) {
+  return (await Promise.all((await list()).map(info))).join('\n\n')
 }
 
 main()

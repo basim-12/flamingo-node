@@ -47,6 +47,7 @@
     "bare-module": "7.0.1",
     "bare-os": "3.9.3",
     "bare-path": "3.1.2",
+    "bare-pipe": "4.3.1",
     "bare-process": "4.5.1",
     "bare-runtime": "1.33.0",
     "bare-stream": "2.13.4",

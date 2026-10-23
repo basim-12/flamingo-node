@@ -34,10 +34,9 @@ registers the code package `flamingo-node` (built by `lib/build.js`) and a bot n
 `cli bot flamingo` reports its status, `cli bot flamingo --log` prints everything it has
 logged, and `cli bot flamingo --end` stops it exactly as `fw up --shutdown` does.
 
-Two consequences of running as a bot. A background `fw up` returns as soon as the bot is
-running and its output goes to the bot's log core, which cannot be read while the bot holds
-the drive storage, so use `fw up --attach` when you want to watch it start. And while the
-node runs, commands that need that storage, such as `cli pkg +<name>`, are refused.
+A background `fw up` returns as soon as the bot is running, and its output goes to the
+bot's log core: `cli bot flamingo --log` prints it, while the node runs or after, and
+`fw up --attach` watches it start in this terminal instead.
 
 ## Programmatic API
 
