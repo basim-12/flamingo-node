@@ -10,7 +10,7 @@ module.exports = tasks
 // Things that run from a pack's drive and can be stopped and started again, such as
 // a bot. Built on a packs() instance; the drive holds bot.json (what to run) and
 // whatever the task saves.
-async function tasks(pkgs) {
+async function tasks (pkgs) {
   const run_dir = path.join(pkgs.root, 'run')
   const running = new Map()
   let saving = Promise.resolve()
@@ -20,31 +20,31 @@ async function tasks(pkgs) {
   const registry = Object.assign(Object.create(null), await read_json(path.join(pkgs.root, 'bots.json')))
   return api
 
-  async function close() {
+  async function close () {
     await saving
   }
 
-  function save() {
+  function save () {
     saving = saving.then(() => write_json(path.join(pkgs.root, 'bots.json'), registry))
     return saving
   }
 
-  function list() {
+  function list () {
     return Object.keys(registry).sort()
   }
 
-  function get(name) {
+  function get (name) {
     return registry[name]
   }
 
-  function info(name) {
+  function info (name) {
     const link = registry[name]
     if (!link) throw new Error(`Unknown bot: ${name}`)
     return `Name: ${name}\nDrive: ${link}\nPackage: ${pkgs.find(link) || '(unnamed)'}\nStatus: ${busy(link) ? 'running' : 'stopped'}`
   }
 
   // A task runs if this process runs it, or a live process claims it in its pidfile.
-  function runner(name) {
+  function runner (name) {
     if (running.has(name)) return { pid: process.pid }
     try {
       const { pid } = JSON.parse(fs.readFileSync(path.join(run_dir, name + '.pid'), 'utf8'))
@@ -54,7 +54,7 @@ async function tasks(pkgs) {
   }
 
   // Whether any task on the drive behind `link` is running.
-  function busy(link) {
+  function busy (link) {
     const { id } = reference(link)
     return list().some(name => reference(registry[name]).id === id && runner(name))
   }
@@ -63,7 +63,7 @@ async function tasks(pkgs) {
   // fills a fresh drive and bot.json is written for it. Otherwise the drive must
   // already hold bot.json, and not belong to another task: sharing one would mean
   // two bots with one identity.
-  async function create(name, spec, cwd) {
+  async function create (name, spec, cwd) {
     if (registry[name]) throw new Error(`Bot already exists: ${name}`)
     const from = await pkgs.source(spec, cwd)
     if (from.local) throw new Error('A bot needs a drive, not a local path: pass a package name, drive id or dat:// reference')
@@ -88,7 +88,7 @@ async function tasks(pkgs) {
   // Run a task's entry in this process until it is stopped. Returns { done, stop }.
   // `print` shows a line to whoever started it; every line is also appended to the
   // task's log core, which outlives the run.
-  async function start(name, print) {
+  async function start (name, print) {
     if (!registry[name]) throw new Error(`Unknown bot: ${name}`)
     if (busy(registry[name])) throw new Error('This bot is already running')
     const opened = await pkgs.open_drive(registry[name], false)
@@ -155,7 +155,7 @@ async function tasks(pkgs) {
 
   // Stop a running task: directly if it runs in this process, otherwise by
   // signalling the process that runs it and waiting for it to exit.
-  async function end(name) {
+  async function end (name) {
     if (!registry[name]) throw new Error(`Unknown bot: ${name}`)
     const local = running.get(name)
     if (local) {
@@ -172,7 +172,7 @@ async function tasks(pkgs) {
 
   // Everything a task has logged, oldest first, across every run. Reading needs the
   // store, so it only works once the task has stopped.
-  async function read_log(name) {
+  async function read_log (name) {
     if (!registry[name]) throw new Error(`Unknown bot: ${name}`)
     const core = await pkgs.core('log', name)
     await core.ready()
@@ -185,7 +185,7 @@ async function tasks(pkgs) {
 
   // Delete a drive with every package and task registered on it. Refused while a
   // task on that drive is running.
-  async function remove(link) {
+  async function remove (link) {
     if (busy(link)) throw new Error('Cannot delete a running bot or its package')
     await pkgs.remove(link)
     const { id } = reference(link)
@@ -193,7 +193,7 @@ async function tasks(pkgs) {
     await save()
   }
 
-  async function refresh(drive) {
+  async function refresh (drive) {
     const link = await pkgs.update(drive)
     for (const name of list()) if (reference(registry[name]).id === drive.id) registry[name] = link
     await save()
@@ -202,11 +202,11 @@ async function tasks(pkgs) {
 
 // The CLI, not the generator, records what a bot runs: the generator's drive at its
 // pinned revision, and that drive's main.js.
-function write_bot_json(drive, code) {
+function write_bot_json (drive, code) {
   return drive.put('/bot.json', Buffer.from(JSON.stringify({ entry: code + '/main.js' }, null, 2)))
 }
 
-async function config(drive) {
+async function config (drive) {
   const data = await drive.get('/bot.json')
   if (!data) throw new Error('Configuration drive must contain bot.json')
   const { entry } = JSON.parse(data)
@@ -214,7 +214,7 @@ async function config(drive) {
   return entry
 }
 
-function alive(pid) {
+function alive (pid) {
   try {
     process.kill(pid, 0)
     return true
@@ -223,7 +223,7 @@ function alive(pid) {
   }
 }
 
-async function read_json(file) {
+async function read_json (file) {
   try {
     return JSON.parse(await fsp.readFile(file, 'utf8'))
   } catch (err) {
@@ -233,7 +233,7 @@ async function read_json(file) {
 }
 
 // Write to a temporary file and rename it, so a crash never leaves half a registry.
-async function write_json(file, data) {
+async function write_json (file, data) {
   const temp = file + '.' + crypto.randomBytes(16).toString('hex')
   try {
     await fsp.writeFile(temp, JSON.stringify(data, null, 2) + '\n', { mode: 0o600, flag: 'wx' })
