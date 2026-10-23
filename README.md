@@ -200,8 +200,8 @@ run bots from the repository folder.
 
 The node runs from the installed repository and its data folder, so per-bot on-chain /
 channel *data* is not preserved between runs yet, only the node identity. The drive's code
-is pinned; what the sandbox installs is not. Reproducible installation of pinned
-Bitcoin/Lightning versions and peer replication remain deferred.
+is pinned, and so is what the sandbox installs: Bitcoin Core by the published checksum of
+its release and Core Lightning by commit. Peer replication remains deferred.
 
 ## Related Repositories
 
