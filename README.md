@@ -14,6 +14,10 @@ drive and bot CLI described in [scripts/README.md](scripts/README.md). `npm link
 clone gives you the same two. `cli` runs on Bare, so it needs `bare` on PATH; `fw` is a
 Node command and works anywhere.
 
+The node runs in a sandbox, which needs **Docker installed**. How it is built and started
+is internal, and documented in
+[lib/node_modules/sandbox/README.md](lib/node_modules/sandbox/README.md).
+
 ## CLI Reference
 
 ```text
@@ -44,9 +48,9 @@ call instead of shelling out to the CLI:
 const { up, down, running } = require('flamingo-node')
 
 await up()                               // same as `fw up`
-await up({ attach: true })               // ... and stream the container's logs
+await up({ attach: true })               // ... and stream its output
 await up({ scenario: 'two-nodes.json' }) // ... and run a scenario
-await running()                          // is the container up?
+await running()                          // is the node up?
 await down()                             // same as `fw up --shutdown`
 ```
 
@@ -54,22 +58,18 @@ It throws on failure rather than exiting, so the caller decides what to do.
 
 ## Runtimes
 
-The host side runs on Bare; only the container entrypoint stays on Node.
+The host side runs on Bare; only the entrypoint that runs inside the sandbox stays on Node.
 
 | File | Runtime | Job |
 | --- | --- | --- |
 | `lib/cli.js` | Node | What `fw` points at. Forwards the command line to Bare using the runtime npm installed, so a `#!/usr/bin/env node` shebang is enough on machines without `bare` on PATH. |
 | `lib/fw.js` | Bare | The host CLI: reads the arguments and calls the api. |
-| `lib/flamingo.js`, `lib/docker-run.js`, `lib/docker-install.js`, `lib/exec.js`, `lib/scenario-runner.js` | both | The api and the Docker layer. The `imports` map in `package.json` points `child_process`, `fs`, `os`, `path` and `process` at the `bare-*` packages when Bare resolves them; Node ignores the map because its keys don't start with `#`. |
-| `lib/start.js` | Node | The container entrypoint, which `fw start` runs directly. bitcoind, lightningd and the WebSocket daemon need Node, so nothing on this path goes through Bare. |
+| `lib/flamingo.js`, `lib/scenario-runner.js`, [`sandbox`](lib/node_modules/sandbox/README.md) | both | The api and the sandbox under it. An `imports` map points `child_process`, `fs`, `os`, `path` and `process` at the `bare-*` packages when Bare resolves them; Node ignores the map because its keys don't start with `#`. |
+| `lib/start.js` | Node | What runs inside the sandbox, which `fw start` runs directly. bitcoind, lightningd and the WebSocket daemon need Node, so nothing on this path goes through Bare. |
 
 `bare-subprocess` has no `exec`, `execFile` or `execSync`, so the shared code uses `spawn`
-and `spawnSync` only (`lib/exec.js`), and it reads output as bytes because `spawnSync`
-ignores `encoding` under Bare.
-
-## How is `fw start/stop` different from `fw up/down`?
-
-Previously, `start/stop` managed local/bare-metal processes while `up/down` managed the Docker environment. These have been unified into `fw up` to simplify the API surface and hide implementation details. Docker is now considered an internal implementation detail that the CLI manages automatically.
+and `spawnSync` only, and it reads output as bytes because `spawnSync` ignores `encoding`
+under Bare.
 
 ## Environment Configuration
 
@@ -107,9 +107,9 @@ For testing scenarios, several `admin_` commands are available:
 
 ## How is `fw start/stop` different from `fw up/down`?
 
-Previously, `start/stop` managed local/bare-metal processes (bitcoind, lightningd) while `up/down` managed the Docker environment. 
-
-To simplify the API surface and hide implementation details, these have been unified into `fw up`. Whether it's running locally or in Docker is now an internal detail, allowing for a more consistent developer experience.
+`start/stop` used to manage bitcoind and lightningd as local processes, while `up/down`
+managed the sandbox they run in. They are one command now, `fw up`: where the node runs is
+an internal detail, so there is nothing to choose between.
 
 
 ## Network Scenarios
@@ -178,7 +178,7 @@ cli bot demo --run
 
 `lib/build.js` writes `lib/drive`'s two files plus the installed `flamingo-docker`
 dependency, read from `node_modules` at the commit `package.json` pins, so the drive
-carries the Docker setup without this repository keeping copies of it. Nothing reads
+carries what the node needs without this repository keeping copies of it. Nothing reads
 those files from the drive yet: the bot asks `fw up`, and `fw` loads them from its own
 `node_modules`.
 
@@ -196,13 +196,12 @@ runs `fw up --shutdown`. How the node runs is flamingo-node's business; the bot 
 asks for it to start and stop.
 
 The node itself isn't in the drive yet: the bot runs `fw` from this repository, so
-run bots from the repository folder. Docker has to be installed on the machine.
+run bots from the repository folder.
 
-The adapter uses the installed repository's startup and Docker data folder, so
-per-bot on-chain / channel *data* is not preserved between runs yet — only the
-node identity. The adapter code is pinned; the installed Docker application is
-not. Reproducible installation of pinned Bitcoin/Lightning versions and peer
-replication remain deferred.
+The node runs from the installed repository and its data folder, so per-bot on-chain /
+channel *data* is not preserved between runs yet, only the node identity. The drive's code
+is pinned; what the sandbox installs is not. Reproducible installation of pinned
+Bitcoin/Lightning versions and peer replication remain deferred.
 
 ## Related Repositories
 

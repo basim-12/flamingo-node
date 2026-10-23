@@ -81,11 +81,16 @@
     ],
     "rules": {
       "camelcase": "off",
-      "no-unused-vars": "off"
+      "no-unused-vars": "off",
+      "no-template-curly-in-string": "off"
     },
     "ignorePatterns": [
-      "node_modules",
-      "dist"
+      "/node_modules",
+      "dist",
+      "!lib/node_modules/sandbox",
+      "lib/node_modules/bitcoind.js",
+      "lib/node_modules/lightningd.js",
+      "lib/node_modules/websocketd"
     ]
   }
 }
