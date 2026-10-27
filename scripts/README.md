@@ -159,13 +159,20 @@ Flamingo's own generator, entry and bot live in `lib/drive` and are described in
 [Running Flamingo as a bot](../README.md#running-flamingo-as-a-bot). Useful as a
 worked example of what a real generator and entry look like.
 
-## Kits
+## Sandboxing and capabilities
 
 A drive can say which JS modules its code needs, and the loader provides them (see
-Generators).
-[kits.md](kits.md) is a proposal for how a drive would declare that and how datashell would
-provide it inside a sandbox, with the CLI commands and JS calls it would add. Nothing in it
-is implemented.
+Generators). Where that code is allowed to run, and what else it may be granted, is the
+subject of two modules:
+
+| | |
+| --- | --- |
+| [`sbx`](sbx/README.md) | where code from a drive runs, so it reaches only what it was granted. Docker today, `docker sbx` next. |
+| [`cap`](cap/README.md) | what a drive may ask for, how it is granted and remembered, and `cli cap`. |
+
+Both are written down before they are built, so the model can be argued with first. What
+exists today is the module that starts and stops the Flamingo node, still inside
+flamingo-node, the rest is design.
 
 ## The daemon
 
