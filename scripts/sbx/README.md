@@ -4,8 +4,8 @@ Runs code datashell did not write, with only what it was granted. A drive holds 
 sandbox is where it is allowed to run.
 
 Nothing outside this module names Docker, a container or an image. Docker is how the sandbox
-is built today, `docker sbx` is how it is meant to be built next, and both are this module's
-business alone.
+is built today, Docker Sandboxes is how it is meant to be built next, and both are this
+module's business alone.
 
 ## What it is for
 
@@ -19,6 +19,9 @@ It also makes the interesting thing possible. A drive's code runs in a sandbox, 
 lands in another drive, and that drive is the input of the next one, so sandboxed runs chain
 into a pipeline across machines, and running a stranger's code stops being reckless.
 
+Only the drive's own code goes inside. Datashell's bot machinery stays out here, because
+putting it in the same sandbox as untrusted code offers it up to be attacked.
+
 ## Using it
 
 Nothing user facing. There is no `cli sbx`, a bot is started with `cli bot <name> --run` as
@@ -29,9 +32,11 @@ const sbx = require('./sbx')
 
 const run = await sbx.run({ drive, mount, output, caps })
 
+run.id                  // the audit core, which is also the sandbox's identity
+run.input               // messages in
+run.output              // messages out
 await run.done          // settles when the code inside finishes
 run.stop()              // stop it, the sandbox is torn down either way
-await sbx.running(name)
 ```
 
 | | |
@@ -41,10 +46,74 @@ await sbx.running(name)
 | `output` | the drive that receives what the code writes, so a run's result is addressable |
 | `caps` | what it was granted, which decides what is wired in at all |
 
-Today the module is narrower than that: `up(app)` / `down()` / `running()` / `logs()`, which
-start and stop one prepared image, the Flamingo node. The shape above is what the first
-`cli cap` work turns it into. It lives in flamingo-node for the moment and moves here with
-that work.
+Today the module is narrower than that: `up(app)` / `down()` / `logs()` / `running()`, which
+start and stop one prepared image, the Flamingo node, and say whether its container is up. The shape above is what the first `cli cap` work turns
+it into. It lives in flamingo-node for the moment and moves here with that work.
+
+## Messages in and out
+
+Two hypercores, which are stdin and stdout. There is no third one for errors: an error is a
+message on the output core with an error type, not a separate channel.
+
+- **input** is created outside and its code reads it. Whoever spawned the sandbox, or an app
+  talking to it later, appends to it.
+- **output** is created and owned by the sandbox. A message on it can carry a `dat://`
+  reference, or a path inside the output drive, so a large result is linked rather than
+  copied into the feed.
+
+Files are the other half of it. The code inside writes into its own filesystem, that path is
+watched, and what appears there lands in the **output drive**. So a run has two results: a
+feed of messages and an addressable drive, and the paths in the first point into the second.
+
+## Identity, and resuming
+
+Every run has an **audit core**. Its first message records the parameters it was started with:
+the id of the input core, and the addresses of `drive`, `mount`, `output` and `caps`. The
+sandbox's id is derived from that core, so the core is both the record of what a run was
+allowed and the handle to find it again.
+
+Resuming is then one lookup. Given a sandbox id, its audit core says what it was, which
+drives it had and which caps were granted, and it starts again on the same terms without
+asking anyone anything. A bot is meant to be reusable that way. Deleting it and starting a
+fresh one is the user's call.
+
+## What Docker Sandboxes gives us
+
+First, a correction worth having written down: **`docker sandbox` is gone.** The cli plugin
+still ships, but it reports *"docker sandbox is deprecated and has been removed"*. The product
+is now **Docker Sandboxes**, a separate `sbx` cli:
+
+```sh
+brew trust docker/tap && brew install docker/tap/sbx
+sbx login
+```
+
+Docker Desktop is not required, local sandboxes are free, and on mac it needs 14+ on Apple
+silicon. `sbx login` is a Docker account sign-in, which is a dependency on Docker's servers
+for something otherwise local, and the reason the sandbox wants to stay behind this module
+rather than be assumed everywhere.
+
+- **Isolation.** Each sandbox is a microVM with its own kernel, **its own Docker daemon** and
+  its own image cache. Not a shared-kernel container. So Docker in Docker is simply there, and
+  the Flamingo container can run inside a sandbox unchanged.
+- **Talking to it.** `sbx exec` runs a command inside, editors attach over ssh, bare `sbx` is
+  interactive. There is no message bus, so stdio through `exec` is the whole of it, which is
+  why the input and output cores above are ours and not Docker's.
+- **Files.** A host path given to `sbx create` or `sbx run` is mounted at the same absolute
+  path by filesystem passthrough: read-write, changes flowing both ways, no sync process in
+  between. Nothing of the host outside that mount is reachable. This is what makes drives in
+  and out cheap — mirror a drive into a mounted folder and what the code writes comes straight
+  back.
+- **Network.** Deny by default. All outbound TCP goes through a proxy on the host and only an
+  allowlist gets through; `sbx policy ls` lists the rules and they can be removed. UDP is
+  blocked unless an experimental flag is set, ICMP always. So a bitcoin node inside has no
+  network until it is granted one, and that is enforced by the sandbox rather than by us.
+- **Persistence.** The VM survives stop and restart with its installed packages and images
+  intact, until `sbx rm` deletes it.
+
+Two things the docs do not answer, so they get tested before anything is built on them:
+whether a policy change reaches a **running** sandbox, and whether **inbound** connections can
+be published at all, which a lightning node accepting peers needs.
 
 ## How it works today
 
@@ -68,23 +137,17 @@ that work.
 
 ## Where it is going
 
-- **`docker sbx`** instead of a prepared image per app: one generic base, a drive's code
+- **A generic base** instead of a prepared image per app: one small base, a drive's code
   mounted in, and whatever it installs done inside the sandbox rather than baked by us.
-- **Drives in, drives out.** A watched drive is mirrored into the sandbox, and a volume is
-  watched the other way so everything the code writes lands in an output drive. Nothing has
-  to be copied by hand and a run's result has an address.
-- **Bots run inside.** Today a bot runs in the daemon and only the node it starts is
-  sandboxed. The bot itself belongs inside too.
-- **Docker in Docker** stays available for a drive that needs a base we do not offer,
-  eventually through something like `require('bare-docker')`.
+- **Drives in, drives out,** over the passthrough mount described above, so nothing is copied
+  by hand and a run's result has an address.
+- **Custom code inside, bot logic outside.** Today a bot runs in the daemon and only the node
+  it starts is sandboxed. What moves inside is the drive's own code; the generic machinery
+  that manages it stays where it is.
+- **Docker in Docker** for a drive that needs a base we do not offer, eventually through
+  something like `require('bare-docker')`. Inside a microVM this is a local Docker daemon, not
+  a hole in the host's.
 - **Less Docker over time.** If a base image's filesystem is itself a hyperdrive, a set of
   drives mounted into an empty base replaces the image, versioned like layers and with the
-  same rollback. `fuse` is one route; `localdrive` and `mirror-drive` already do the
-  checkout, watch and copy that gets most of the effect.
-
-## Open
-
-- Where the boundary sits when a drive needs a program installed: inside the sandbox at first
-  run, or into a drive once and mounted from then on.
-- How a run is identified and found again: by the output drive, by the sandbox, or both.
-- Whether a sandbox is reused between runs of the same drive, or always fresh.
+  same rollback. `localdrive` and `mirror-drive` already do the checkout, watch and copy, so
+  with a passthrough mount `fuse` is not needed to get most of the effect.
