@@ -220,6 +220,7 @@ async function packs (root = ROOT) {
 // Evaluate a module graph read straight from drive with bare module's Loader.
 // Every file goes through the drive. The runtime modules come in as builtins.
 async function run_from (drive, file) {
+  const builtins = await modules_for(drive)
   const protocol = new Module.Protocol({
     async exists (url) {
       return (await drive.entry(url.pathname)) !== null
@@ -228,11 +229,11 @@ async function run_from (drive, file) {
       const data = await drive.get(url.pathname)
       if (!url.pathname.endsWith('.js')) return data
       const source = data.toString()
-      validate_cjs(source, url)
+      validate_cjs(source, url, builtins)
       return source
     }
   })
-  const loader = new Module.Loader({ protocol, builtins: await modules_for(drive), defaultType: Module.constants.SCRIPT })
+  const loader = new Module.Loader({ protocol, builtins, defaultType: Module.constants.SCRIPT })
   return loader.import(new URL('drive://' + file))
 }
 
@@ -255,11 +256,19 @@ async function modules_for (drive) {
 }
 
 // A dynamic import() would load code around the Loader, so drive code may not use it.
-function validate_cjs (source, url) {
+// A require of something ungranted is caught here too: the Loader would otherwise go
+// looking for it in the drive and fail without ever naming it.
+function validate_cjs (source, url, granted) {
   const ast = acorn.parse(source, { ecmaVersion: 'latest', sourceType: 'script' })
   walk.simple(ast, {
     ImportExpression () {
       throw new SyntaxError(`Dynamic import is disabled: ${url.href}`)
+    },
+    CallExpression (node) {
+      if (node.callee.name !== 'require') return
+      const [arg] = node.arguments
+      if (arg?.type !== 'Literal' || /^\.{0,2}\//.test(arg.value)) return
+      if (!(arg.value in granted)) throw new Error(`This drive requires ${arg.value}, which it was not granted`)
     }
   })
 }

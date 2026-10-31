@@ -173,6 +173,53 @@ One unrelated thing the run exposed: lightningd's `clnrest` plugin disables itse
 `No module named 'gunicorn'`, so the image is missing a python dependency. Nothing to do with
 sandboxing, but it is real and it belongs with the work that pins the python side.
 
+### And what its code turned out to need
+
+The same method on the module side. The drive's code was run with the builtins cut back to
+pure computation, and each failure says what to put back:
+
+```
+start:  bare-path, bare-url, bare-crypto
+step 1: needs bare-fs
+step 2: needs bare-process
+step 3: needs bare-subprocess
+step 4: runs
+```
+
+Three capabilities, all of them real: `fs.existsSync` to find the app, `process.cwd()` to
+locate it, and `spawn` to start it. Two things that fell out of the list are worth as much as
+the three in it.
+
+**`bare-os` is handed to every drive today and this one never touches it.** That is the whole
+argument for discovering a list rather than writing one: a set assembled by hand grows a module
+nobody needs and nobody notices.
+
+**`bare-ws` was never reported missing**, although the code requires it and it was never in the
+builtins. It arrived because the drive's own `package.json` asks for it, and today asking is
+receiving. That is the hole this whole model closes, and it is now visible rather than
+theoretical.
+
+### The failure has to name the capability
+
+None of the above was discoverable before this run. Every missing module, whichever one it was,
+produced the same thing:
+
+```
+UNEXPECTED_PROMISE: Protocol exists returned a promise during synchronous linking
+```
+
+A name absent from the builtins falls through to being resolved as a file in the drive, and
+that resolution happens during synchronous linking, where our reads cannot answer. The message
+names neither the module nor the drive.
+
+"Run it and see what breaks" cannot work against an error like that, so the require check now
+happens where the code is already being parsed, and the message says which capability was
+wanted:
+
+```
+This drive requires bare-fs, which it was not granted
+```
+
 ## What a drive declares
 
 Two fields, and the split is not what it was in the first draft of this readme. `dependencies`
