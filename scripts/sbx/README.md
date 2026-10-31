@@ -103,29 +103,47 @@ We drive the `msb` command line tool and write our own small wrapper around it, 
 pulling their npm SDK and its TypeScript conventions into our code. Everything below is an
 `msb` flag, so nothing is given up by staying on the cli.
 
-- **Isolation.** A microVM per sandbox, booted as a child process. No daemon and no
-  long-running service to depend on.
-- **Permissions are deny-first and fine grained.** `--no-net` for nothing at all, or
-  `--net-default deny` with `--net-rule` for exactly what is needed. A rule reads
-  `<action>[:<direction>]@<target>[:<proto>[:<ports>]]`, so ingress and egress are separate,
-  tcp/udp/icmp are separate, and a target can be a domain, a domain suffix, an ip, a CIDR or a
-  group like `private` or `meta`. `-p` publishes a port, which settles the question Docker
-  Sandboxes left open: a lightning node can accept peers.
+Everything below was run on this machine, not read off their docs.
+
+- **Isolation.** A microVM per sandbox with its own kernel, booted as a child process, no
+  daemon and no long-running service. A sandbox boots in about twelve seconds including an
+  image pull.
+- **Our Docker image goes in unchanged.** `docker save flamingo-app:latest` followed by
+  `msb image load -i <tar> -t flamingo-app:latest` imported the 322MB image in two seconds,
+  with no registry and no rebuild. Whatever Docker builds today can run in a sandbox tomorrow.
+- **The network is not denied by default.** A plain `msb run` reached the public internet. The
+  default egress action is deny *with an implicit `allow@public` rule when no other rules are
+  present*, which amounts to the same thing. Denying is something you have to ask for:
+  `--no-net`, or `--net-default deny` with the rules you want.
+- **Rules work, with one trap.** `--net-default deny --net-rule "allow@example.com:tcp:443"`
+  blocked example.com until `--net-strict=false` was added. Strict mode is the default and
+  wants inspectable authority for a hostname allow. With it off, example.com was allowed and
+  github.com stayed blocked, so the rule itself is sound. A rule reads
+  `<action>[:<direction>]@<target>[:<proto>[:<ports>]]`, and a target can be a domain, a domain
+  suffix, an ip, a CIDR or a group.
+- **`--no-net` closes ingress too.** `-p 8080:8080` under `--no-net` was unreachable from the
+  host; the same port under `--net-default-egress deny` answered. So "nothing outbound, but
+  reachable on one port" is `--net-default-egress deny` plus `-p`, and the port format is
+  `HOST:GUEST`, not a bare number.
 - **Mounts, four kinds.** `--mount-dir` and `--mount-file` for host paths, `--mount-named` for
-  persistent named storage, `--mount-disk` for a disk image, `--tmpfs` for memory only, and
-  `--mount-owned` for storage that dies with the sandbox. Each takes options, `:ro` among them.
-- **A host socket straight into the guest.** `--vsock /path/on/host.sock:PORT` wires a unix
-  socket on the host to the sandbox over virtio-vsock, with no TCP port opened. Code inside
-  connects to CID 2 on that port. This is the one that matters most to us, and the next
-  section says why.
+  persistent named storage, `--mount-disk` for a disk image, `--tmpfs PATH:SIZE` for memory
+  only, and `--mount-owned` for storage that dies with the sandbox. Each takes options, `:ro`
+  among them.
+- **A host socket into the guest, working with no network at all.** `--vsock
+  /path/on/host.sock:5000`, and `AF_VSOCK` to CID 2 on port 5000 from inside, carried a request
+  and its reply between a sandbox started with `--no-net` and a unix socket server on the host.
+  Datashell's daemon already listens on a unix socket, so this is the channel, and the next
+  section is about what rides on it.
 - **Resources.** `--cpus` and `--memory`, with `--max-cpus` / `--max-memory` reserving room for
   `msb modify` to resize a sandbox while it runs.
 - **Lifecycle.** `msb create` / `start` / `stop` / `rm`, plus `fork` and `snap create` /
   `snap restore`, so a bot can be reused, forked or thrown away, which is what he asked for.
 
-Still open: whether **network rules** can be changed on a running sandbox. `msb modify`
-documents cpus and memory only, so a cap granted or revoked mid-run may mean a restart. It
-gets tested rather than assumed.
+Two things still unresolved. Whether **network rules can change on a running sandbox**:
+`msb modify` documents cpus and memory only, so a cap granted or revoked mid-run may mean a
+restart. And what **`--security restricted`** actually restricts: it is a documented profile,
+but uid, a writable root filesystem and `dmesg_restrict` all looked identical under both
+profiles here, so it needs a closer look before it is relied on.
 
 ## How it works today
 

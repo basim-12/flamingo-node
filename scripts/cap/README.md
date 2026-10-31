@@ -150,6 +150,29 @@ found by taking everything away and seeing what breaks.
 The same method both sides, and it is how flamingo-node earns its own capability list before
 any other bot is attempted.
 
+### What flamingo-node turned out to need
+
+Run in a sandbox with nothing granted, this is what it asked for, in the order it asked:
+
+| | why it failed without it | granted with |
+| --- | --- | --- |
+| a writable `/data` | the first failure of all: `Specified data directory "/data/bitcoin" does not exist` | `--tmpfs /data:2G`, or a mount to keep it |
+| its code at `/app` | an empty `/app` has nothing to run | a mount of the drive's contents |
+| ingress on one port | the browser's websocket has to reach it | `-p 8080:8080` |
+| **no egress at all** | nothing outbound ever failed | `--net-default-egress deny` |
+
+The last row is the interesting one. bitcoind and lightningd both came up **with the network
+switched off entirely** — `getblockchaininfo` reporting `"chain": "regtest"` and `getinfo`
+reporting lightningd v23.08.1 at `blockheight 0`, `num_peers 0`. That is not a quirk of the
+test: flamingo runs regtest, bitcoind's rpc is on `127.0.0.1:18443` and lightningd binds
+`--addr=127.0.0.1:9736`, so all of its traffic is loopback inside the sandbox. A node that
+looks like it obviously needs the internet needs none of it, and only a guess would have put
+an egress rule in its caps.
+
+One unrelated thing the run exposed: lightningd's `clnrest` plugin disables itself with
+`No module named 'gunicorn'`, so the image is missing a python dependency. Nothing to do with
+sandboxing, but it is real and it belongs with the work that pins the python side.
+
 ## What a drive declares
 
 Two fields, and the split is not what it was in the first draft of this readme. `dependencies`
@@ -197,11 +220,15 @@ revision is a rollback.
 `cli bot <name> --build` is how it gets built without being run, and in the easy case it is a
 no-op because the drive already exists.
 
-**Reproducibility is the hard part, and we should not pretend otherwise.** An `install.js` that
-produces the same drive hash twice in a row on a fresh sandbox is achievable and worth checking
-for; the same script a week later usually is not. Anything not pinned pulls in whatever is
-current, timestamps and build dates land in files, and generated keys and caches differ. Bit
-identical rebuilds across time are a research problem, not a feature we can promise.
+**Reproducibility is the hard part, and we should not pretend otherwise.** The same install run
+twice into two fresh sandboxes does match: `apt-get install jq` produced an identical hash over
+the installed files, over `/usr/bin` and `/usr/lib` whole, and even over `/var/lib/dpkg/status`,
+which is further than expected. What made that work is that both runs resolved the same
+version, `1.6-2.1+deb12u3`. A week later they would not, and nothing in the script said they
+had to. That is the whole problem in one line: what is reproducible is an install whose inputs
+are pinned, and `apt-get install jq` does not pin anything. Add timestamps and build dates
+landing in files, and generated keys and caches, and bit identical rebuilds across time are a
+research problem rather than a feature we can promise.
 
 So the design does not need them. **The built drive is the artifact.** It is content addressed,
 so it is published by its hash and everyone else mounts that drive instead of building their
