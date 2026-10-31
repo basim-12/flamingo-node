@@ -2,6 +2,9 @@
   "name": "flamingo-node-drive",
   "private": true,
   "dependencies": {
+    "bare-fs": "4.8.1",
+    "bare-process": "4.5.1",
+    "bare-subprocess": "6.1.0",
     "bare-ws": "3.1.0",
     "bip39-mnemonic": "2.5.0"
   }

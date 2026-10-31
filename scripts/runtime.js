@@ -23,6 +23,7 @@ async function runtime (root) {
       export_to: pkgs.export_to,
       remove: name => bots.remove(pkg_of(name))
     },
+    cap: pkgs.caps,
     bot: {
       list: bots.list,
       info: bots.info,

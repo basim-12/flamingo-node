@@ -141,6 +141,20 @@ run them; nothing starts them automatically.
 | `cli bot <name> --log` | Print everything the bot has logged, across every run. Refused while it runs, because it holds the store. |
 | `cli bot -<name>` | Refuse while running. Otherwise remove the bot and purge its associated bot package/data, preserving the code package and unrelated data. |
 
+## Capabilities
+
+What a drive's code may require. A builtin computes and touches nothing, so it is never
+asked for; anything else is refused until it is granted, and declaring it in the drive's
+`package.json` is not the same as being granted it. The model is [cap](cap/README.md).
+
+| Command | Behavior |
+| --- | --- |
+| `cli cap` | List what is granted. |
+| `cli cap --expand` | The builtins as well, which need no grant. |
+| `cli cap <name>` | Whether it is a builtin or a cap, and whether it is granted. |
+| `cli cap +<name>` | Grant it, and remember the answer. |
+| `cli cap -<name>` | Revoke it everywhere. |
+
 Generator shortcut and lifecycle:
 
 ```sh
@@ -203,6 +217,7 @@ any of them is running.
 ~/.ds/
 ├── pkgs.json       # { "<package-name>": "dat://...", ... }
 ├── bots.json       # { "<bot-name>": "dat://...", ... }
+├── grants.json     # { "<capability-name>": true, ... } what drive code may require
 ├── corestore/      # Shared persistent drive storage, and each bot's log core
 ├── ds.sock         # where the daemon listens
 ├── ds.pid          # the daemon's pid, while it is up

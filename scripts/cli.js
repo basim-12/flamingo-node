@@ -12,6 +12,8 @@ const usage = `Usage:
   cli bot +<name> <specifier>
   cli bot <name> [--see|--run|--run --attach|--end|--log] | cli bot
   cli bot -<name>
+  cli cap [--expand] | cli cap <name>
+  cli cap +<name> | cli cap -<name>
 
 <specifier> is a local folder or file, a package name, a drive id or a dat://
 reference; add /<file> to run a generator from a drive.
@@ -32,12 +34,14 @@ async function main () {
 function parse (args) {
   const [kind, raw, option, ...flags] = args
   const attach = option === '--run' && flags[0] === '--attach'
-  if (!['pkg', 'bot'].includes(kind) || flags.length > (attach ? 1 : 0)) throw new Error(usage)
+  if (!['pkg', 'bot', 'cap'].includes(kind) || flags.length > (attach ? 1 : 0)) throw new Error(usage)
   if (raw === '--help' || raw === '-h') return { action: 'help' }
   if (!raw) return { kind, action: 'list' }
+  if (kind === 'cap' && raw === '--expand' && !option) return { kind, action: 'expand' }
   const prefix = /^[+-]/.test(raw) ? raw[0] : ''
   const name = prefix ? raw.slice(1) : raw
   if (!NAME.test(name)) throw new Error('Invalid name: use letters, numbers, underscores and hyphens')
+  if (kind === 'cap' && prefix === '+' && !option) return { kind, name, action: 'create' }
   if (prefix === '+' && option && !option.startsWith('--')) return { kind, name, action: 'create', source: option }
   if (prefix === '-' && !option) return { kind, name, action: 'delete' }
   if (prefix) throw new Error(usage)
@@ -55,6 +59,16 @@ function parse (args) {
 
 // Call the runtime function the command asks for, and return what to print.
 async function command (ds, { kind, action, name, source }, cwd) {
+  if (kind === 'cap') {
+    if (action === 'list') return await listing(ds.cap) || 'Nothing granted.'
+    if (action === 'expand') return ds.cap.expand()
+    if (action === 'create') await ds.cap.grant(name)
+    if (action === 'delete') {
+      await ds.cap.revoke(name)
+      return `Revoked everywhere: ${name}`
+    }
+    return ds.cap.info(name)
+  }
   if (kind === 'pkg') {
     if (action === 'list') return await listing(ds.pkg) || 'No pkgs.'
     if (action === 'create') await ds.pkg.create(name, source, cwd)

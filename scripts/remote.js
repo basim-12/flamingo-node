@@ -44,6 +44,7 @@ async function remote (root = packs.ROOT) {
     root,
     close: () => socket.end(),
     pkg: namespace('pkg', ['list', 'info', 'create', 'export_to', 'remove']),
+    cap: namespace('cap', ['list', 'info', 'expand', 'grant', 'revoke']),
     bot: {
       ...namespace('bot', ['list', 'info', 'busy', 'create', 'run', 'end', 'log', 'remove']),
       // The bot runs in the daemon and prints here. Stopping is the same `end` any other

@@ -1,7 +1,6 @@
 const fsp = require('bare-fs/promises')
 const path = require('bare-path')
 const os = require('bare-os')
-const crypto = require('bare-crypto')
 const { URLSearchParams } = require('bare-url')
 const Module = require('bare-module')
 const Corestore = require('corestore')
@@ -11,12 +10,11 @@ const MirrorDrive = require('mirror-drive')
 const id_encoding = require('hypercore-id-encoding')
 const acorn = require('acorn')
 const walk = require('acorn-walk')
+const capabilities = require('../cap')
+const { read_json, write_json, uuid } = require('../json')
 
 const ROOT = path.join(os.homedir(), '.ds')
 const LINK = /^dat:\/\/(\d+)\.(\d+)\.([a-z0-9]+)\.([a-f0-9]{64})(\/[^?]*)?(?:\?(.*))?$/
-// Modules any drive may require: the runtime itself. Anything else a drive needs, it
-// declares in its own package.json.
-const RUNTIME = ['bare-process', 'bare-path', 'bare-fs', 'bare-os', 'bare-crypto', 'bare-subprocess', 'bare-url']
 
 module.exports = packs
 packs.ROOT = ROOT
@@ -26,11 +24,10 @@ packs.drive_link = drive_link
 async function packs (root = ROOT) {
   let corestore = null
   let saving = Promise.resolve()
-  const api = { root, close, list, get, find, info, source, open_drive, load, core, create, update, remove, export_to }
-
   await fsp.mkdir(root, { recursive: true, mode: 0o700 })
   const registry = Object.assign(Object.create(null), await read_json(path.join(root, 'pkgs.json')))
-  return api
+  const caps = await capabilities(root)
+  return { root, caps, close, list, get, find, info, source, open_drive, load, core, create, update, remove, export_to }
 
   // The shared store, opened the first time a drive is touched. Reading names never
   // opens it, so inspecting works while a running bot holds its lock.
@@ -215,50 +212,51 @@ async function packs (root = ROOT) {
     try { await export_folder(opened.view, real) } finally { await opened.close() }
     return real
   }
-}
 
-// Evaluate a module graph read straight from drive with bare module's Loader.
-// Every file goes through the drive. The runtime modules come in as builtins.
-async function run_from (drive, file) {
-  const builtins = await modules_for(drive)
-  const protocol = new Module.Protocol({
-    async exists (url) {
-      return (await drive.entry(url.pathname)) !== null
-    },
-    async read (url) {
-      const data = await drive.get(url.pathname)
-      if (!url.pathname.endsWith('.js')) return data
-      const source = data.toString()
-      validate_cjs(source, url, builtins)
-      return source
-    }
-  })
-  const loader = new Module.Loader({ protocol, builtins, defaultType: Module.constants.SCRIPT })
-  return loader.import(new URL('drive://' + file))
-}
-
-// What code in a drive may require: the runtime, plus what the drive's own package.json
-// asks for. Those have to be installed where this runs, so a drive says what it needs and
-// finds out at startup if it isn't here.
-async function modules_for (drive) {
-  const builtins = Object.fromEntries(RUNTIME.map(name => [name, require(name)]))
-  const manifest = await drive.get('/package.json')
-  for (const name of Object.keys(manifest ? JSON.parse(manifest).dependencies || {} : {})) {
-    if (builtins[name]) continue
-    try {
-      builtins[name] = require(name) // The host process resolves the name against its own node_modules.
-    } catch (err) {
-      if (err.code !== 'MODULE_NOT_FOUND') throw err
-      throw new Error(`This drive needs ${name}, which is not installed here`)
-    }
+  // Evaluate a module graph read straight from drive with bare module's Loader.
+  // Every file goes through the drive. What it may require comes in as builtins.
+  async function run_from (drive, file) {
+    const provided = await modules_for(drive)
+    const protocol = new Module.Protocol({
+      async exists (url) {
+        return (await drive.entry(url.pathname)) !== null
+      },
+      async read (url) {
+        const data = await drive.get(url.pathname)
+        if (!url.pathname.endsWith('.js')) return data
+        const source = data.toString()
+        validate_cjs(source, url, provided, caps.allows)
+        return source
+      }
+    })
+    const loader = new Module.Loader({ protocol, builtins: provided, defaultType: Module.constants.SCRIPT })
+    return loader.import(new URL('drive://' + file))
   }
-  return builtins
+
+  // What code in a drive may require: the builtins, plus whatever its own package.json
+  // declares and has been granted. Declaring is not granting, so anything ungranted is
+  // left out and the require that wants it says so.
+  async function modules_for (drive) {
+    const provided = {}
+    const manifest = await drive.get('/package.json')
+    const declared = Object.keys(manifest ? JSON.parse(manifest).dependencies || {} : {})
+    for (const name of [...capabilities.BUILTINS, ...declared]) {
+      if (provided[name] || !caps.allows(name)) continue
+      try {
+        provided[name] = require(name) // The host process resolves the name against its own node_modules.
+      } catch (err) {
+        if (err.code !== 'MODULE_NOT_FOUND') throw err
+        throw new Error(`This drive needs ${name}, which is not installed here`)
+      }
+    }
+    return provided
+  }
 }
 
 // A dynamic import() would load code around the Loader, so drive code may not use it.
-// A require of something ungranted is caught here too: the Loader would otherwise go
-// looking for it in the drive and fail without ever naming it.
-function validate_cjs (source, url, granted) {
+// A require of something it does not have is caught here too: the Loader would otherwise
+// go looking for it in the drive and fail without ever naming it.
+function validate_cjs (source, url, provided, allows) {
   const ast = acorn.parse(source, { ecmaVersion: 'latest', sourceType: 'script' })
   walk.simple(ast, {
     ImportExpression () {
@@ -267,8 +265,10 @@ function validate_cjs (source, url, granted) {
     CallExpression (node) {
       if (node.callee.name !== 'require') return
       const [arg] = node.arguments
-      if (arg?.type !== 'Literal' || /^\.{0,2}\//.test(arg.value)) return
-      if (!(arg.value in granted)) throw new Error(`This drive requires ${arg.value}, which it was not granted`)
+      if (arg?.type !== 'Literal' || /^\.{0,2}\//.test(arg.value) || arg.value in provided) return
+      throw new Error(allows(arg.value)
+        ? `This drive requires ${arg.value} without declaring it in package.json`
+        : `This drive requires ${arg.value}, which it was not granted`)
     }
   })
 }
@@ -361,28 +361,7 @@ async function exists (file) {
   }
 }
 
-async function read_json (file) {
-  try {
-    return JSON.parse(await fsp.readFile(file, 'utf8'))
-  } catch (err) {
-    if (err.code === 'ENOENT') return {}
-    throw err
-  }
-}
-
 // Write to a temporary file and rename it, so a crash never leaves half a registry.
-async function write_json (file, data) {
-  const temp = file + '.' + uuid()
-  try {
-    await fsp.writeFile(temp, JSON.stringify(data, null, 2) + '\n', { mode: 0o600, flag: 'wx' })
-    await fsp.rename(temp, file)
-  } finally { await fsp.rm(temp, { force: true }) }
-}
-
 function inside (root, target) {
   return target === root || target.startsWith(root + path.sep)
-}
-
-function uuid () {
-  return crypto.randomBytes(16).toString('hex')
 }

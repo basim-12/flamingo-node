@@ -69,9 +69,9 @@ flags that do it are in [sbx](../sbx/README.md#what-microsandbox-gives-us).
 ## Using it
 
 ```sh
-cli cap                     # what is granted, top level only
-cli cap --expand            # the whole tree, including what each one pulls in
-cli cap <name>              # what it is, what it needs, and who was granted it
+cli cap                     # what is granted
+cli cap --expand            # the builtins as well, which are never asked for
+cli cap <name>              # whether it is a builtin or a cap, and whether it is granted
 cli cap +<name>             # grant it
 cli cap -<name>             # revoke it, everywhere
 ```
@@ -85,6 +85,16 @@ ds.cap(name)                // cli cap <name>
 ds.cap`+`(name)             // cli cap +<name>
 ds.cap`-`(name)             // cli cap -<name>
 ```
+
+Grants live in `grants.json` beside the drives, so an answer given once is remembered and
+`-<name>` takes it back from everything at once. That file is what was *given*; the `caps` a
+drive declares is what it *asks for*, which is why they are not the same file.
+
+`--expand` shows the two groups rather than a tree. A tree needs a cap to *have* an
+implementation that pulls others in, and what implements a declared capability is still open,
+so there is nothing real to expand yet. A module's own `package.json` is not readable from
+here either — its `exports` map refuses the subpath — so the tree cannot be inferred from what
+is installed.
 
 ## Asking, and remembering
 

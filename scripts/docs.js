@@ -357,7 +357,7 @@ test('packs module: package operations as plain functions', async t => {
 // where datashell runs, and it says so by name when it isn't. Requiring something the
 // drive never listed doesn't link at all, because reading a drive is asynchronous and
 // linking is not.
-test('a drive lists the modules it needs in its package.json', async t => {
+test('a drive declares what it needs, and a grant lets it have it', async t => {
   const fixture = (name, deps) => {
     const folder = path.join(home, name)
     fs.mkdirSync(folder)
@@ -366,13 +366,32 @@ test('a drive lists the modules it needs in its package.json', async t => {
     return folder
   }
   t.is((await cli('pkg', '+listed', fixture('listed-code', { 'bare-ws': '3.1.0' }))).code, 0)
-  t.is((await cli('pkg', '+from-listed', 'listed/generate')).code, 0, 'the module it listed is there')
+  t.is((await cli('pkg', '+from-listed', 'listed/generate')).err, 'This drive requires bare-ws, which it was not granted', 'declaring is not granting')
 
-  t.is((await cli('pkg', '+absent', fixture('absent-code', { 'no-such-module': '1.0.0' }))).code, 0)
-  t.is((await cli('pkg', '+from-absent', 'absent/generate')).err, 'This drive needs no-such-module, which is not installed here')
+  t.is((await cli('cap', '+bare-ws')).code, 0)
+  t.is((await cli('pkg', '+from-granted', 'listed/generate')).code, 0, 'declared and granted, so it is there')
 
   t.is((await cli('pkg', '+unlisted', fixture('unlisted-code', null))).code, 0)
-  t.is((await cli('pkg', '+from-unlisted', 'unlisted/generate')).code, 1, 'an unlisted module is not provided')
+  t.is((await cli('pkg', '+from-unlisted', 'unlisted/generate')).err, 'This drive requires bare-ws without declaring it in package.json', 'a grant is not a declaration either')
+
+  t.is((await cli('pkg', '+absent', fixture('absent-code', { 'no-such-module': '1.0.0' }))).code, 0)
+  t.is((await cli('cap', '+no-such-module')).code, 0)
+  t.is((await cli('pkg', '+from-absent', 'absent/generate')).err, 'This drive needs no-such-module, which is not installed here')
+})
+
+// What a drive may require is a capability, and capabilities are granted by name
+// (cap/README.md). Builtins compute and touch nothing, so they are never asked for;
+// everything else is refused until `cli cap +<name>`, and revoking takes it back.
+test('cap module: grant, see, revoke', async t => {
+  t.ok((await cli('cap', '--expand')).out.includes('bare-path'), 'a builtin needs no grant')
+  t.ok((await cli('cap', 'bare-path')).out.includes('Kind: builtin'))
+  t.ok((await cli('cap', 'bare-fs')).out.includes('Granted: no'), 'a cap starts ungranted')
+
+  t.ok((await cli('cap', '+bare-fs')).out.includes('Granted: yes'), 'granting prints what it granted')
+  t.ok((await cli('cap')).out.includes('bare-fs'), 'and the listing has it')
+
+  t.is((await cli('cap', '-bare-fs')).out, 'Revoked everywhere: bare-fs')
+  t.ok((await cli('cap', 'bare-fs')).out.includes('Granted: no'), 'and it is gone again')
 })
 
 // The bot commands are a thin layer over the tasks module (tasks/README.md), built
