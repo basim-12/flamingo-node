@@ -87,14 +87,13 @@ ds.cap`-`(name)             // cli cap -<name>
 ```
 
 Grants live in `grants.json` beside the drives, so an answer given once is remembered and
-`-<name>` takes it back from everything at once. That file is what was *given*; the `caps` a
-drive declares is what it *asks for*, which is why they are not the same file.
+`-<name>` takes it back from everything at once. That file holds what was given. What a drive
+declares under `caps` is what it asks for, so the two are kept apart.
 
-`--expand` shows the two groups rather than a tree. A tree needs a cap to *have* an
-implementation that pulls others in, and what implements a declared capability is still open,
-so there is nothing real to expand yet. A module's own `package.json` is not readable from
-here either — its `exports` map refuses the subpath — so the tree cannot be inferred from what
-is installed.
+`--expand` shows the two groups rather than a tree. A tree needs a cap whose implementation
+pulls others in, and who implements a declared capability is still an open question, so there
+is nothing to expand yet. Guessing it from what is installed does not work either: a module's
+own `package.json` cannot be read from here, because its `exports` map refuses that subpath.
 
 ## Asking, and remembering
 

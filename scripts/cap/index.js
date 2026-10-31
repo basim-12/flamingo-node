@@ -1,21 +1,20 @@
 const path = require('bare-path')
 const { read_json, write_json } = require('../json')
 
-// Pure computation, so there is nothing to grant and nothing to ask: a drive always has
-// these. Anything else it requires touches the world and has to be granted first.
+// Pure computation, so there is nothing to grant and nothing to ask: every drive has these.
+// Anything else a drive requires reaches outside itself, and has to be granted first.
 const BUILTINS = ['bare-path', 'bare-url', 'bare-crypto']
 
 module.exports = caps
 caps.BUILTINS = BUILTINS
 
-// What a drive's code is allowed to require. A name in grants.json is a name that was
-// granted, so the answer is remembered and the next drive wanting the same thing is not
-// asked again, and revoking takes it back from everything at once. A drive's own `caps`
-// declaration is a different thing: what it asks for, not what it was given.
+// What a drive's code is allowed to require. Granting writes the name into grants.json, so
+// the answer is remembered and the next drive that wants the same thing is not asked again.
+// Revoking removes it, and takes it back from everything at once. What a drive declares
+// under `caps` is the other side of this: what it asks for, not what it was given.
 async function caps (root) {
   const file = path.join(root, 'grants.json')
   const granted = Object.assign(Object.create(null), await read_json(file))
-  const indent = name => '  ' + name
 
   return { list, info, expand, grant, revoke, allows }
 
@@ -35,6 +34,7 @@ async function caps (root) {
   // Both groups at once: what every drive has, and what has been granted on top.
   function expand () {
     const names = list()
+    const indent = name => '  ' + name
     return [
       'Builtins, every drive has these:',
       ...BUILTINS.map(indent),

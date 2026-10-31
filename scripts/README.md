@@ -143,8 +143,8 @@ run them; nothing starts them automatically.
 
 ## Capabilities
 
-What a drive's code may require. A builtin computes and touches nothing, so it is never
-asked for; anything else is refused until it is granted, and declaring it in the drive's
+What a drive's code may require. A builtin computes and touches nothing, so it is never asked
+for. Anything else is refused until it is granted, and declaring it in the drive's
 `package.json` is not the same as being granted it. The model is [cap](cap/README.md).
 
 | Command | Behavior |

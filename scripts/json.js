@@ -2,8 +2,9 @@ const fsp = require('bare-fs/promises')
 const crypto = require('bare-crypto')
 
 // The small files datashell keeps beside its drives: the package registry and the
-// capability grants. Written through a temporary name so a half written file is never
-// what the next read finds, which is what the id is for; drive namespaces use it too.
+// capability grants. Each is written under a temporary name and renamed into place, so a
+// half written file is never what the next read finds. The id names those temporary
+// files, and drive namespaces use it too.
 
 async function read_json (file) {
   try {

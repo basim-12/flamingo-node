@@ -11,6 +11,7 @@ const id_encoding = require('hypercore-id-encoding')
 const acorn = require('acorn')
 const walk = require('acorn-walk')
 const capabilities = require('../cap')
+const { import_folder, export_folder } = require('../folder')
 const { read_json, write_json, uuid } = require('../json')
 
 const ROOT = path.join(os.homedir(), '.ds')
@@ -282,50 +283,6 @@ function reference (link) {
 async function drive_link (drive) {
   const hash = await drive.core.treeHash(drive.core.length)
   return `dat://${drive.core.length}.${drive.core.fork}.${drive.id}.${hash.toString('hex')}`
-}
-
-// MirrorDrive copies bytes; the metadata hooks keep empty folders and permissions.
-async function import_folder (drive, folder) {
-  const metadata = new Map()
-  const dirs = []
-  async function walk (relative = '') {
-    for (const item of await fsp.readdir(path.join(folder, relative), { withFileTypes: true })) {
-      const key = relative + '/' + item.name
-      const stat = await fsp.lstat(path.join(folder, key))
-      if (!stat.isDirectory() && !stat.isFile()) throw new Error(`Unsupported filesystem entry: ${key}`)
-      metadata.set(key, { mode: stat.mode & 0o777 })
-      if (stat.isDirectory()) {
-        dirs.push(key)
-        await walk(key)
-      }
-    }
-  }
-  await walk()
-  await new MirrorDrive(new Localdrive(folder, { metadata }), drive, { prune: false, preload: false }).done()
-  for (const key of dirs) await drive.put(key, Buffer.alloc(0), { metadata: { ...metadata.get(key), directory: true } })
-}
-
-async function export_folder (drive, folder) {
-  await fsp.mkdir(folder, { mode: 0o700 })
-  try {
-    const dirs = []
-    const metadata = new Map()
-    for await (const { key, value } of drive.list()) {
-      if (value.metadata?.directory) {
-        const dest = path.join(folder, key)
-        await fsp.mkdir(dest, { recursive: true })
-        dirs.push([dest, value.metadata.mode])
-      }
-    }
-    await new MirrorDrive(drive, new Localdrive(folder, { metadata }), {
-      prune: false, preload: false, filter: key => !dirs.some(([dir]) => dir === path.join(folder, key))
-    }).done()
-    for (const [key, meta] of metadata) if (meta?.mode !== undefined) await fsp.chmod(path.join(folder, key), meta.mode)
-    for (const [dir, mode] of dirs.reverse()) await fsp.chmod(dir, mode)
-  } catch (err) {
-    await fsp.rm(folder, { recursive: true, force: true })
-    throw err
-  }
 }
 
 // Whether a drive's data is already here. Corestore has no "do you have this?" call, so

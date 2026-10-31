@@ -28,26 +28,39 @@ Nothing user facing. There is no `cli sbx`, a bot is started with `cli bot <name
 before and the sandbox underneath is invisible. Datashell uses it through this api:
 
 ```js
-const sbx = require('./sbx')
+const run = require('./sbx/run')
 
-const run = await sbx.run({ drive, mount, output, caps })
+const sandbox = await run({ drive, mount, output, caps, command, audit })
 
-run.id                  // the audit core, which is also the sandbox's identity
-run.input               // messages in
-run.output              // messages out
-await run.done          // settles when the code inside finishes
-run.stop()              // stop it, the sandbox is torn down either way
+sandbox.id              // the audit core's id, which is also the sandbox's identity
+await sandbox.done      // settles when the code inside finishes, with what it printed
+sandbox.stop()          // stop it, and what it wrote so far is still collected
 ```
 
 | | |
 | --- | --- |
-| `drive` | the drive whose code runs, at a pinned revision |
-| `mount` | drives to make readable inside, by `dat://` reference, pack name or bot drive name |
-| `output` | the drive that receives what the code writes, so a run's result is addressable |
-| `caps` | what it was granted, which decides what is wired in at all |
+| `drive` | the drive whose code runs. Mirrored out and mounted read-only at `/app` |
+| `mount` | more drives to make readable inside, each at `/mnt/<drive id>`, read-only |
+| `output` | the drive that receives whatever the code writes to `/out`, so a run's result is addressable |
+| `caps` | what it was granted. Nothing by default: no network at all, and nothing writable but `/out` |
+| `command` | what to run inside, as the image sees it |
+| `audit` | the hypercore that identifies the run, and holds what it was started with |
 
-What exists today is narrower, and it is what flamingo-node calls through
-`require('../scripts/sbx')`: one prepared image, started and stopped.
+A failed run still looks like a successful one. `done` gives what the code printed, and `msb`
+reports a stopped sandbox without its exit code, so there is nowhere to read one from. The
+error message type on the output core is the answer to that, once the cores exist.
+
+`caps` here is what the sandbox is allowed to reach. The modules a drive may require are
+granted separately, in [cap](../cap/README.md):
+
+```js
+{}                                                   // no network, nothing published
+{ net: ['allow@dns', 'allow@example.com:tcp:443'] }  // deny by default, allow those two
+{ ports: ['8080:8080'] }                             // no egress, reachable on one port
+```
+
+Separate from all of that is what flamingo-node calls through `require('../scripts/sbx')`:
+one prepared image under Docker, started and stopped.
 
 | | |
 | --- | --- |
@@ -56,7 +69,10 @@ What exists today is narrower, and it is what flamingo-node calls through
 | `logs()` | follow its output in this terminal until Ctrl+C |
 | `down()` | stop bitcoind and the lightning nodes cleanly, then take the node down, waiting for each so nothing is killed mid write |
 
-The shape above is what the first `cli cap` work turns this into.
+So there are two sandboxes for now, because flamingo's node still needs its prepared image.
+`run` is the one that takes any drive, but it does not run a *bot* yet: `cli bot <name> --run`
+still runs drive code in the daemon. Moving that across is what makes the sandbox invisible,
+and it is the next step.
 
 ## Messages in and out
 
@@ -74,6 +90,9 @@ same socket is handed to the sandbox and the code inside connects out to it: no 
 published, nothing of the host is reachable except that one socket, and the daemon on the other
 end stays outside where malicious code cannot touch it. What it is allowed to ask for over that
 socket is the capability question, not a sandbox question.
+
+The cores are not built yet. `run` carries files in and out, which is the other half of it,
+and `--vsock` is proven to work, but the two are not joined up.
 
 Files are the other half of it. The code inside writes into its own filesystem, that path is
 watched, and what appears there lands in the **output drive**. So a run has two results: a
