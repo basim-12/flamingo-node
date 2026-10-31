@@ -17,8 +17,10 @@ rest of this readable.
 The module boundary only covers code that goes through the loader. A lightning node is not
 written in JS and does not use Bare; it is a binary on the linux inside the sandbox, and no
 `require` of ours stands between it and the network. What stands there is the sandbox's own
-policy: outbound TCP denied unless allowed, nothing of the host filesystem outside the
-mounted workspace. Those are the facts in [sbx](../sbx/README.md#what-docker-sandboxes-gives-us).
+policy. With microsandbox that policy is detailed enough to be useful: egress and ingress
+separately, per protocol, per port, per domain or ip, nothing allowed unless a rule says so,
+and only the paths that were mounted. The flags are in
+[sbx](../sbx/README.md#what-microsandbox-gives-us).
 
 So a capability is one of two things, or both:
 
@@ -40,6 +42,8 @@ unable to reach a peer. Asking for `bitcoind` asks for both, and the prompt says
     nothing to ask. The aim is for this group to shrink towards nothing.
   - **caps** — anything that touches the world. `bare-fs`, `bare-subprocess`, `bare-ws`,
     `bitcoind`. Granted, remembered, revocable, and extendable at runtime.
+- **The default is nothing.** No network, no mounts, no native api. Everything below is
+  something that was handed back on purpose.
 - **Read and write are per capability.** Not per path and not per drive: a capability that
   reads and one that writes are two capabilities with two names. Wanting one folder readable
   and another writable means writing capabilities that say exactly that, which keeps the
@@ -47,6 +51,20 @@ unable to reach a peer. Asking for `bitcoind` asks for both, and the prompt says
 - Datashell's own modules — corestore, hyperdrive, the daemon — are in **neither** group. A
   drive cannot name its way to them. (Today it can: anything datashell has installed is handed
   over if the drive lists it. That is the first thing this closes.)
+
+## What there can be asked for
+
+The categories, named datashell-side. What enforces each one is the sandbox's business, and the
+flags that do it are in [sbx](../sbx/README.md#what-microsandbox-gives-us).
+
+| | |
+| --- | --- |
+| **modules** | what the drive's JS may require, and which native api comes back with it |
+| **network** | per direction, per protocol, per port, and per domain, ip or range. Nothing by default |
+| **paths** | which host paths are visible inside, and whether each is readable or writable |
+| **storage** | persistent, throwaway, or memory only, which decides what survives a restart |
+| **resources** | cpu and memory, which are a capability too: a bot that can take the machine down has been granted something |
+| **lifecycle** | whether it may be reused, forked or snapshotted, or is always fresh |
 
 ## Using it
 
@@ -117,20 +135,44 @@ so a compromised install is a compromised sandbox and not a compromised machine.
 wrapper is there so the *prompt* is honest about what is being allowed, not because installing
 is safe.
 
+## Finding out what is needed
+
+The format is not designed up front, because guessing it produces a format nobody needs. It is
+found by taking everything away and seeing what breaks.
+
+- **In JS**, real sandboxing removes the native api. A module that quietly relied on it throws,
+  and the throw names what it wanted. The developer runs their own module, collects those
+  failures, and declares exactly those.
+- **In the sandbox**, start with `--no-net` and nothing mounted. bitcoind and lightningd will
+  not work. What they need becomes visible as they fail, and goes in one rule at a time until
+  the thing runs on the minimum rather than on everything.
+
+The same method both sides, and it is how flamingo-node earns its own capability list before
+any other bot is attempted.
+
 ## What a drive declares
 
-One list. The author writes what the code needs and datashell decides which of those names are
-capabilities, because it is datashell that knows:
+Two fields, and the split is not what it was in the first draft of this readme. `dependencies`
+is modules, as always. `caps` is **permissions** — what the code needs *done for it* once
+everything has been taken away:
 
 ```json
 {
-  "dependencies": { "bare-ws": "3.1.0", "bitcoind": "1.0.0" }
+  "dependencies": { "bare-ws": "3.1.0" },
+  "caps": {
+    "net": ["allow@seed.bitcoin.sipa.be:tcp:8333"],
+    "fs": { "read": ["/mnt/chain"] }
+  }
 }
 ```
 
-`bare-ws` is a cap and so is `bitcoind`, so both are prompted for; `bare-path` in the same list
-would be a builtin and prompt for nothing. There is no second field to put a module under and
-no decision for the author to get wrong.
+A module always goes under `dependencies`, so there is never a question of which field it
+belongs in. A permission always goes under `caps`, and `caps` can live in `package.json` or in
+its own `caps.json` when it grows.
+
+That shape is provisional on purpose. It starts as whatever flamingo-node actually turns out to
+need, and grows only as real bots need more, because the point is a config a developer can read
+and write without a manual.
 
 How it installs what it needs is **JavaScript that runs in the sandbox**, not a format we
 invented — a Dockerfile is widely known and a JSON manifest of our own would be a worse version

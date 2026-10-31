@@ -167,7 +167,7 @@ subject of two modules:
 
 | | |
 | --- | --- |
-| [`sbx`](sbx/README.md) | where code from a drive runs, so it reaches only what it was granted. Docker today, Docker Sandboxes next. |
+| [`sbx`](sbx/README.md) | where code from a drive runs, so it reaches only what it was granted. Docker today, microsandbox next. |
 | [`cap`](cap/README.md) | what a drive may ask for, how it is granted and remembered, and `cli cap`. |
 
 Both are written down before they are built, so the model can be argued with first. What

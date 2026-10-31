@@ -3,9 +3,9 @@
 Runs code datashell did not write, with only what it was granted. A drive holds the code, and the
 sandbox is where it is allowed to run.
 
-Nothing outside this module names Docker, a container or an image. Docker is how the sandbox
-is built today, Docker Sandboxes is how it is meant to be built next, and both are this
-module's business alone.
+Nothing outside this module names Docker, a container or an image, and nothing will name
+microsandbox either. Docker is how the sandbox is built today, microsandbox is how it is built
+next, and which one it is stays this module's business.
 
 ## What it is for
 
@@ -47,8 +47,9 @@ run.stop()              // stop it, the sandbox is torn down either way
 | `caps` | what it was granted, which decides what is wired in at all |
 
 Today the module is narrower than that: `up(app)` / `down()` / `logs()` / `running()`, which
-start and stop one prepared image, the Flamingo node, and say whether its container is up. The shape above is what the first `cli cap` work turns
-it into. It lives in flamingo-node for the moment and moves here with that work.
+start and stop one prepared image, the Flamingo node, and say whether its container is up.
+The shape above is what the first `cli cap` work turns it into. It lives in flamingo-node for
+the moment and moves here with that work.
 
 ## Messages in and out
 
@@ -60,6 +61,12 @@ message on the output core with an error type, not a separate channel.
 - **output** is created and owned by the sandbox. A message on it can carry a `dat://`
   reference, or a path inside the output drive, so a large result is linked rather than
   copied into the feed.
+
+The transport is `--vsock`. Datashell's daemon already serves its api on a unix socket, so the
+same socket is handed to the sandbox and the code inside connects out to it: no port is
+published, nothing of the host is reachable except that one socket, and the daemon on the other
+end stays outside where malicious code cannot touch it. What it is allowed to ask for over that
+socket is the capability question, not a sandbox question.
 
 Files are the other half of it. The code inside writes into its own filesystem, that path is
 watched, and what appears there lands in the **output drive**. So a run has two results: a
@@ -77,43 +84,48 @@ drives it had and which caps were granted, and it starts again on the same terms
 asking anyone anything. A bot is meant to be reusable that way. Deleting it and starting a
 fresh one is the user's call.
 
-## What Docker Sandboxes gives us
+## What microsandbox gives us
 
-First, a correction worth having written down: **`docker sandbox` is gone.** The cli plugin
-still ships, but it reports *"docker sandbox is deprecated and has been removed"*. The product
-is now **Docker Sandboxes**, a separate `sbx` cli:
+Docker Sandboxes is out. It needs a Docker account and is not open source all the way down,
+and that is a dealbreaker. The replacement is
+[microsandbox](https://github.com/superradcompany/microsandbox): Apache-2.0, open source, and
+it runs locally with **no account at all**. An api key exists only for their optional hosted
+backend, which we do not use — local is the default and needs no credential.
 
 ```sh
-brew trust docker/tap && brew install docker/tap/sbx
-sbx login
+curl -fsSL https://install.microsandbox.dev | sh
 ```
 
-Docker Desktop is not required, local sandboxes are free, and on mac it needs 14+ on Apple
-silicon. `sbx login` is a Docker account sign-in, which is a dependency on Docker's servers
-for something otherwise local, and the reason the sandbox wants to stay behind this module
-rather than be assumed everywhere.
+macOS on Apple silicon, linux with KVM, windows with WHP, so it reaches further than Docker
+Sandboxes did. It is still beta, which is worth saying out loud.
 
-- **Isolation.** Each sandbox is a microVM with its own kernel, **its own Docker daemon** and
-  its own image cache. Not a shared-kernel container. So Docker in Docker is simply there, and
-  the Flamingo container can run inside a sandbox unchanged.
-- **Talking to it.** `sbx exec` runs a command inside, editors attach over ssh, bare `sbx` is
-  interactive. There is no message bus, so stdio through `exec` is the whole of it, which is
-  why the input and output cores above are ours and not Docker's.
-- **Files.** A host path given to `sbx create` or `sbx run` is mounted at the same absolute
-  path by filesystem passthrough: read-write, changes flowing both ways, no sync process in
-  between. Nothing of the host outside that mount is reachable. This is what makes drives in
-  and out cheap — mirror a drive into a mounted folder and what the code writes comes straight
-  back.
-- **Network.** Deny by default. All outbound TCP goes through a proxy on the host and only an
-  allowlist gets through; `sbx policy ls` lists the rules and they can be removed. UDP is
-  blocked unless an experimental flag is set, ICMP always. So a bitcoin node inside has no
-  network until it is granted one, and that is enforced by the sandbox rather than by us.
-- **Persistence.** The VM survives stop and restart with its installed packages and images
-  intact, until `sbx rm` deletes it.
+We drive the `msb` command line tool and write our own small wrapper around it, rather than
+pulling their npm SDK and its TypeScript conventions into our code. Everything below is an
+`msb` flag, so nothing is given up by staying on the cli.
 
-Two things the docs do not answer, so they get tested before anything is built on them:
-whether a policy change reaches a **running** sandbox, and whether **inbound** connections can
-be published at all, which a lightning node accepting peers needs.
+- **Isolation.** A microVM per sandbox, booted as a child process. No daemon and no
+  long-running service to depend on.
+- **Permissions are deny-first and fine grained.** `--no-net` for nothing at all, or
+  `--net-default deny` with `--net-rule` for exactly what is needed. A rule reads
+  `<action>[:<direction>]@<target>[:<proto>[:<ports>]]`, so ingress and egress are separate,
+  tcp/udp/icmp are separate, and a target can be a domain, a domain suffix, an ip, a CIDR or a
+  group like `private` or `meta`. `-p` publishes a port, which settles the question Docker
+  Sandboxes left open: a lightning node can accept peers.
+- **Mounts, four kinds.** `--mount-dir` and `--mount-file` for host paths, `--mount-named` for
+  persistent named storage, `--mount-disk` for a disk image, `--tmpfs` for memory only, and
+  `--mount-owned` for storage that dies with the sandbox. Each takes options, `:ro` among them.
+- **A host socket straight into the guest.** `--vsock /path/on/host.sock:PORT` wires a unix
+  socket on the host to the sandbox over virtio-vsock, with no TCP port opened. Code inside
+  connects to CID 2 on that port. This is the one that matters most to us, and the next
+  section says why.
+- **Resources.** `--cpus` and `--memory`, with `--max-cpus` / `--max-memory` reserving room for
+  `msb modify` to resize a sandbox while it runs.
+- **Lifecycle.** `msb create` / `start` / `stop` / `rm`, plus `fork` and `snap create` /
+  `snap restore`, so a bot can be reused, forked or thrown away, which is what he asked for.
+
+Still open: whether **network rules** can be changed on a running sandbox. `msb modify`
+documents cpus and memory only, so a cap granted or revoked mid-run may mean a restart. It
+gets tested rather than assumed.
 
 ## How it works today
 
@@ -144,9 +156,9 @@ be published at all, which a lightning node accepting peers needs.
 - **Custom code inside, bot logic outside.** Today a bot runs in the daemon and only the node
   it starts is sandboxed. What moves inside is the drive's own code; the generic machinery
   that manages it stays where it is.
-- **Docker in Docker** for a drive that needs a base we do not offer, eventually through
-  something like `require('bare-docker')`. Inside a microVM this is a local Docker daemon, not
-  a hole in the host's.
+- **Docker inside the sandbox** for a drive that needs a base we do not offer: install
+  `docker.io` in the microVM and run containers there, which is a Docker daemon of its own and
+  not a hole in the host's. Eventually through something like `require('bare-docker')`.
 - **Less Docker over time.** If a base image's filesystem is itself a hyperdrive, a set of
   drives mounted into an empty base replaces the image, versioned like layers and with the
   same rollback. `localdrive` and `mirror-drive` already do the checkout, watch and copy, so
