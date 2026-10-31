@@ -46,10 +46,17 @@ run.stop()              // stop it, the sandbox is torn down either way
 | `output` | the drive that receives what the code writes, so a run's result is addressable |
 | `caps` | what it was granted, which decides what is wired in at all |
 
-Today the module is narrower than that: `up(app)` / `down()` / `logs()` / `running()`, which
-start and stop one prepared image, the Flamingo node, and say whether its container is up.
-The shape above is what the first `cli cap` work turns it into. It lives in flamingo-node for
-the moment and moves here with that work.
+What exists today is narrower, and it is what flamingo-node calls through
+`require('../scripts/sbx')`: one prepared image, started and stopped.
+
+| | |
+| --- | --- |
+| `up(app)` | make sure the sandbox runtime is installed, prepare the node and start it. Returns once it is started, while the services inside it keep coming up. Refuses if it is already running |
+| `running()` | whether the node is up |
+| `logs()` | follow its output in this terminal until Ctrl+C |
+| `down()` | stop bitcoind and the lightning nodes cleanly, then take the node down, waiting for each so nothing is killed mid write |
+
+The shape above is what the first `cli cap` work turns this into.
 
 ## Messages in and out
 
@@ -147,23 +154,27 @@ profiles here, so it needs a closer look before it is relied on.
 
 ## How it works today
 
-- **Docker.** The module checks `docker --version` and installs Docker if it is missing
-  (`get.docker.com` on linux and macOS, winget on Windows). Docker has to be available.
-- **The image** is built from a `Dockerfile` pinned by commit, so the same commit always
-  produces the same image. What goes into it is installed by one script, with its ubuntu base
-  pinned by digest and each program pinned by checksum or commit.
-- **The container** is started with `docker run`, with its arguments read from a
-  `docker-compose.json`: the volumes it mounts, the ports it publishes and the command it
-  runs. We read the compose file ourselves rather than calling `docker compose`, so there is
-  one way things start and no second tool in the middle.
-- **Stopping** is deliberate rather than a `docker stop`: a program that is mid write can
-  lose state, so each one is asked to stop over its own interface and waited for before the
-  container is removed.
+- **Docker.** `install.js` checks `docker --version` and installs Docker if it is missing
+  (`get.docker.com` on linux and macOS, winget on Windows). Docker has to be available for
+  any of this to work, and this module is the only place that checks.
+- **The image** is built from the `Dockerfile` in the
+  [flamingo-docker](https://github.com/basim-12/flamingo-docker) dependency, pinned to a commit
+  in flamingo-node's `package.json`, so the same commit always produces the same image. What
+  goes into it is installed by that dependency's `install.js`, with the ubuntu base pinned by
+  digest, Bitcoin Core by the checksum of its release tarball and Core Lightning by commit.
+- **The container** is started with `docker run`, with its arguments read from that
+  dependency's `docker-compose.json`: the volumes it mounts, the ports it publishes and the
+  command it runs. We read the compose file ourselves rather than calling `docker compose`, so
+  there is one way things start and no second tool in the middle. `${FLAMINGO_PATH}` in a
+  volume resolves to the `app` folder passed to `up()`.
+- **Stopping** is deliberate rather than a `docker stop`: each lightning node is stopped over
+  its RPC and waited for, then bitcoind the same way, and only then is the container removed.
+  A lightning node killed mid write can lose channel state.
+- **`exec.js`** wraps `spawn` and `spawnSync` in promises. `bare-subprocess` has no `exec`,
+  `execFile` or `execSync`, so everything here is spawn based and reads output as bytes.
 - **Both runtimes.** The module loads under Node and under Bare. Its `package.json` `imports`
   map points `child_process`, `fs`, `os` and `path` at the `bare-*` packages when Bare
   resolves them, and Node ignores the map because its keys do not start with `#`.
-  `bare-subprocess` has no `exec`, `execFile` or `execSync`, so everything here is spawn
-  based and reads output as bytes.
 
 ## Where it is going
 

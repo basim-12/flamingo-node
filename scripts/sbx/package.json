@@ -1,5 +1,5 @@
 {
-  "name": "sandbox",
+  "name": "sbx",
   "private": true,
   "main": "index.js",
   "imports": {

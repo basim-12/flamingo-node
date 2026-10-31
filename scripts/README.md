@@ -171,8 +171,8 @@ subject of two modules:
 | [`cap`](cap/README.md) | what a drive may ask for, how it is granted and remembered, and `cli cap`. |
 
 Both are written down before they are built, so the model can be argued with first. What
-exists today is the module that starts and stops the Flamingo node, still inside
-flamingo-node, the rest is design.
+exists today is the module in `sbx/` that starts and stops the Flamingo node, which
+flamingo-node calls into; the rest is design.
 
 ## The daemon
 

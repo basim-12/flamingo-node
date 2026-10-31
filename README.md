@@ -14,9 +14,9 @@ drive and bot CLI described in [scripts/README.md](scripts/README.md). `npm link
 clone gives you the same two. `cli` runs on Bare, so it needs `bare` on PATH; `fw` is a
 Node command and works anywhere.
 
-The node runs in a sandbox, which needs **Docker installed**. How it is built and started
-is internal, and documented in
-[lib/node_modules/sandbox/README.md](lib/node_modules/sandbox/README.md).
+The node runs in a sandbox, which needs **Docker installed**. The sandbox is datashell's,
+not flamingo's: how it is built and started is documented in
+[scripts/sbx/README.md](scripts/sbx/README.md).
 
 ## CLI Reference
 
@@ -63,7 +63,7 @@ The host side runs on Bare; only the entrypoint that runs inside the sandbox sta
 | --- | --- | --- |
 | `lib/cli.js` | Node | What `fw` points at. Forwards the command line to Bare using the runtime npm installed, so a `#!/usr/bin/env node` shebang is enough on machines without `bare` on PATH. |
 | `lib/fw.js` | Bare | The host CLI: reads the arguments and calls the api. |
-| `lib/flamingo.js`, `lib/scenario-runner.js`, [`sandbox`](lib/node_modules/sandbox/README.md) | both | The api and the sandbox under it. An `imports` map points `child_process`, `fs`, `os`, `path` and `process` at the `bare-*` packages when Bare resolves them; Node ignores the map because its keys don't start with `#`. |
+| `lib/flamingo.js`, `lib/scenario-runner.js` | both | The api. The sandbox under it is datashell's, in [scripts/sbx](scripts/sbx/README.md). An `imports` map points `child_process`, `fs`, `os`, `path` and `process` at the `bare-*` packages when Bare resolves them; Node ignores the map because its keys don't start with `#`. |
 | `lib/start.js` | Node | What runs inside the sandbox, which `fw start` runs directly. bitcoind, lightningd and the WebSocket daemon need Node, so nothing on this path goes through Bare. |
 
 `bare-subprocess` has no `exec`, `execFile` or `execSync`, so the shared code uses `spawn`
