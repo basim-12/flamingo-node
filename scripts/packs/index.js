@@ -28,7 +28,7 @@ async function packs (root = ROOT) {
   await fsp.mkdir(root, { recursive: true, mode: 0o700 })
   const registry = Object.assign(Object.create(null), await read_json(path.join(root, 'pkgs.json')))
   const caps = await capabilities(root)
-  return { root, caps, close, list, get, find, info, source, open_drive, load, core, create, update, remove, export_to }
+  return { root, caps, close, list, get, find, info, source, open_drive, load, core, disk, create, update, remove, export_to }
 
   // The shared store, opened the first time a drive is touched. Reading names never
   // opens it, so inspecting works while a running bot holds its lock.
@@ -50,6 +50,14 @@ async function packs (root = ROOT) {
   // A plain hypercore in its own namespace, for what a task keeps outside its drive.
   async function core (namespace, name) {
     return (await drives()).namespace(namespace).get({ name })
+  }
+
+  // A hyperdrive in its own namespace, for drives datashell keeps rather than registers.
+  // The same name reopens the same drive, so what was built is found again by name.
+  async function disk (namespace, name) {
+    const drive = new Hyperdrive((await drives()).namespace(namespace).namespace(name))
+    await drive.ready()
+    return drive
   }
 
   function save () {

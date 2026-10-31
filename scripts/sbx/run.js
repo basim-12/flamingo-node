@@ -14,7 +14,7 @@ const IMAGE = 'debian:bookworm-slim'
 //
 // The audit core is the run's identity. Its first message says what the run was started
 // with, and the sandbox is named after the core, so a run can be found again from it.
-async function run ({ drive, mount = [], output, caps = {}, command, audit }) {
+async function run ({ drive, mount = [], output, caps = {}, command, image = IMAGE, audit }) {
   await need_msb()
   await audit.ready()
   // Cut short because the mount paths are built from it, and still unique to this core.
@@ -47,7 +47,7 @@ async function run ({ drive, mount = [], output, caps = {}, command, audit }) {
     '--mount-dir', `${app}:/app:ro`,
     ...mounted,
     '--mount-dir', `${out}:/out`,
-    IMAGE, '--', ...command
+    image, '--', ...command
   ])
 
   return { id: audit.id, done: wait(), stop: () => capture(MSB, ['stop', name]) }

@@ -10,7 +10,7 @@ const usage = `Usage:
   cli pkg <name> <dirpath> | cli pkg <name> --export=<dirpath>
   cli pkg -<name>
   cli bot +<name> <specifier>
-  cli bot <name> [--see|--run|--run --attach|--end|--log] | cli bot
+  cli bot <name> [--see|--run|--run --attach|--end|--log|--build] | cli bot
   cli bot -<name>
   cli cap [--expand] | cli cap <name>
   cli cap +<name> | cli cap -<name>
@@ -49,6 +49,7 @@ function parse (args) {
   if (kind === 'bot' && option === '--run') return { kind, name, action: attach ? 'attach' : 'run' }
   if (kind === 'bot' && option === '--end') return { kind, name, action: 'end' }
   if (kind === 'bot' && option === '--log') return { kind, name, action: 'log' }
+  if (kind === 'bot' && option === '--build') return { kind, name, action: 'build' }
   if (kind === 'pkg') {
     if (option.startsWith('--import=') && option.slice(9)) return { kind, name, action: 'create', source: option.slice(9) }
     if (option.startsWith('--export=') && option.slice(9)) return { kind, name, action: 'export', source: option.slice(9) }
@@ -87,6 +88,7 @@ async function command (ds, { kind, action, name, source }, cwd) {
   if (action === 'run') return await ds.bot.run(name) + `\nRunning in the background. Its log: cli bot ${name} --log`
   if (action === 'attach') return ds.bot.attach(name, line => console.log(line))
   if (action === 'log') return await ds.bot.log(name) || 'This bot has logged nothing.'
+  if (action === 'build') return ds.bot.build(name)
   if (action === 'end') await ds.bot.end(name)
   if (action === 'delete') {
     await ds.bot.remove(name)

@@ -139,6 +139,7 @@ run them; nothing starts them automatically.
 | `cli bot <name> --run --attach` | The same, but in this terminal; Ctrl+C stops it. |
 | `cli bot <name> --end` | Stop the bot cleanly and preserve its data. |
 | `cli bot <name> --log` | Print everything the bot has logged, across every run. Refused while it runs, because it holds the store. |
+| `cli bot <name> --build` | Prepare what the bot needs without running it. A drive says how by holding an `install.js`, so a drive without one has nothing to build. The script runs in a sandbox and what it writes becomes a drive of its own, whose reference the bot's drive keeps, so building again has nothing left to do. Refused while the bot runs. |
 | `cli bot -<name>` | Refuse while running. Otherwise remove the bot and purge its associated bot package/data, preserving the code package and unrelated data. |
 
 ## Capabilities

@@ -29,6 +29,7 @@ async function runtime (root) {
       info: bots.info,
       busy: name => bots.busy(bot_of(name)),
       create: bots.create,
+      build: bots.build,
       attach: bots.start,
       end: bots.end,
       log: bots.read_log,

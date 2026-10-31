@@ -4,6 +4,14 @@ const path = require('bare-path')
 const process = require('bare-process')
 const crypto = require('bare-crypto')
 const { reference, drive_link } = require('../packs')
+const sandbox = require('../sbx/run')
+
+// An install script is JavaScript, and the image a sandbox runs by default has no runtime
+// to run it with. This is the stock upstream Node image rather than one we prepare, pinned
+// by digest so a build gets the same thing every time. Node and not Bare because an
+// install script wants a filesystem and subprocesses, and a lone Bare binary carries
+// neither; flamingo's own install.js is already `#!/usr/bin/env node`.
+const BUILD_IMAGE = 'node:26-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9'
 
 module.exports = tasks
 
@@ -14,7 +22,7 @@ async function tasks (pkgs) {
   const run_dir = path.join(pkgs.root, 'run')
   const running = new Map()
   let saving = Promise.resolve()
-  const api = { close, list, get, info, busy, create, start, end, read_log, remove }
+  const api = { close, list, get, info, busy, create, build, start, end, read_log, remove }
 
   // Reading bots.json needs no store, so this works while a running bot holds one.
   const registry = Object.assign(Object.create(null), await read_json(path.join(pkgs.root, 'bots.json')))
@@ -83,6 +91,47 @@ async function tasks (pkgs) {
     registry[name] = link
     await save()
     return link
+  }
+
+  // Prepare what the task needs without running it. A drive says how by holding an
+  // install.js, so a drive without one has nothing to build. The script runs in a sandbox
+  // with a Node carried in, reaching nothing of the user's, and whatever it writes becomes
+  // a drive of its own. The bot's drive keeps that drive's pinned reference, so the hash
+  // says what was built and a second build has nothing left to do.
+  async function build (name) {
+    if (!registry[name]) throw new Error(`Unknown bot: ${name}`)
+    if (busy(registry[name])) throw new Error('This bot is running')
+    const opened = await pkgs.open_drive(registry[name], false)
+    try {
+      const built = await opened.drive.get('/build.json')
+      if (built) return `Already built: ${JSON.parse(built).drive}`
+
+      const entry = await config(opened.drive)
+      const code = await pkgs.open_drive(entry)
+      try {
+        if (!await code.view.entry('/install.js')) return 'Nothing to build'
+        const out = await pkgs.disk('build', name)
+        const run = await sandbox({
+          drive: code.view,
+          output: out,
+          image: BUILD_IMAGE,
+          // The marker is how a failure is told from a success: microsandbox reports a
+          // stopped sandbox without the exit code of what ran in it.
+          command: ['sh', '-c', 'node /app/install.js && touch /out/.built'],
+          audit: await pkgs.core('build', name)
+        })
+        const printed = await run.done
+        if (!await out.entry('/.built')) {
+          await out.close()
+          throw new Error([printed, 'install.js failed, so nothing was built'].filter(Boolean).join('\n'))
+        }
+        await out.del('/.built')
+        const link = await drive_link(out)
+        await out.close()
+        await opened.drive.put('/build.json', Buffer.from(JSON.stringify({ drive: link }, null, 2) + '\n'))
+        return [printed, `Built: ${link}`].filter(Boolean).join('\n')
+      } finally { await code.close() }
+    } finally { await opened.close() }
   }
 
   // Run a task's entry in this process until it is stopped. Returns { done, stop }.

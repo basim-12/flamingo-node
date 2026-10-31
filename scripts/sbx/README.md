@@ -44,11 +44,19 @@ sandbox.stop()          // stop it, and what it wrote so far is still collected
 | `output` | the drive that receives whatever the code writes to `/out`, so a run's result is addressable |
 | `caps` | what it was granted. Nothing by default: no network at all, and nothing writable but `/out` |
 | `command` | what to run inside, as the image sees it |
+| `image` | what to run it in. A stock `debian:bookworm-slim` unless something needs more |
 | `audit` | the hypercore that identifies the run, and holds what it was started with |
 
 A failed run still looks like a successful one. `done` gives what the code printed, and `msb`
 reports a stopped sandbox without its exit code, so there is nowhere to read one from. The
 error message type on the output core is the answer to that, once the cores exist.
+
+A build passes an `image` of its own, because an install script is JavaScript and the default
+base has no runtime to run it with. It is the stock upstream Node image pinned by digest, not
+one we prepare. Carrying a runtime into the stock base was the first attempt and it does not
+work: Node's linux build wants `libatomic`, which no stock debian or ubuntu image has, and a
+lone Bare binary exposes `Bare` and nothing else, so an install script would have no
+filesystem and no subprocesses.
 
 `caps` here is what the sandbox is allowed to reach. The modules a drive may require are
 granted separately, in [cap](../cap/README.md):
