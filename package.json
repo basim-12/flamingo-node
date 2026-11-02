@@ -56,7 +56,7 @@
     "bare-ws": "3.1.0",
     "bip39-mnemonic": "2.5.0",
     "corestore": "6.18.4",
-    "flamingo-docker": "git+https://github.com/basim-12/flamingo-docker.git#288a7cba03c78a01faeda87f8edb852e8cb3eda6",
+    "flamingo-docker": "git+https://github.com/basim-12/flamingo-docker.git#d7341dffaff228c15f67fd098f20f98e499f2b4d",
     "hypercore-id-encoding": "1.3.0",
     "hyperdrive": "11.13.4",
     "localdrive": "2.2.1",
