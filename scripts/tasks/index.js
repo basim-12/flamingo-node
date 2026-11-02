@@ -106,30 +106,28 @@ async function tasks (pkgs) {
       const built = await opened.drive.get('/build.json')
       if (built) return `Already built: ${JSON.parse(built).drive}`
 
-      const entry = await config(opened.drive)
-      const code = await pkgs.open_drive(entry)
+      const code = await pkgs.open_drive(await config(opened.drive))
       try {
         if (!await code.view.entry('/install.js')) return 'Nothing to build'
         const out = await pkgs.disk('build', name)
-        const run = await sandbox({
-          drive: code.view,
-          output: out,
-          image: BUILD_IMAGE,
-          // The marker is how a failure is told from a success: microsandbox reports a
-          // stopped sandbox without the exit code of what ran in it.
-          command: ['sh', '-c', 'node /app/install.js && touch /out/.built'],
-          audit: await pkgs.core('build', name)
-        })
-        const printed = await run.done
-        if (!await out.entry('/.built')) {
-          await out.close()
-          throw new Error([printed, 'install.js failed, so nothing was built'].filter(Boolean).join('\n'))
-        }
-        await out.del('/.built')
-        const link = await drive_link(out)
-        await out.close()
-        await opened.drive.put('/build.json', Buffer.from(JSON.stringify({ drive: link }, null, 2) + '\n'))
-        return [printed, `Built: ${link}`].filter(Boolean).join('\n')
+        const said = (printed, line) => printed ? `${printed}\n${line}` : line
+        try {
+          const run = await sandbox({
+            drive: code.view,
+            output: out,
+            image: BUILD_IMAGE,
+            // The marker is how a failure is told from a success: microsandbox reports a
+            // stopped sandbox without the exit code of what ran in it.
+            command: ['sh', '-c', 'node /app/install.js && touch /out/.built'],
+            audit: await pkgs.core('audit', name)
+          })
+          const printed = await run.done
+          if (!await out.entry('/.built')) throw new Error(said(printed, 'install.js failed, so nothing was built'))
+          await out.del('/.built')
+          const link = await drive_link(out)
+          await opened.drive.put('/build.json', Buffer.from(JSON.stringify({ drive: link }, null, 2) + '\n'))
+          return said(printed, `Built: ${link}`)
+        } finally { await out.close() }
       } finally { await code.close() }
     } finally { await opened.close() }
   }
