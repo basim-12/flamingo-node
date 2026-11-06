@@ -9,10 +9,7 @@ Bitcoin Lightning Network backend — manages bitcoind, lightningd, and a WebSoc
 npm install -g flamingo-node
 ```
 
-That installs two commands: `fw`, which runs the Flamingo node, and `cli`, the generic
-drive and bot CLI described in [scripts/README.md](scripts/README.md). `npm link` in a
-clone gives you the same two. `cli` runs on Bare, so it needs `bare` on PATH; `fw` is a
-Node command and works anywhere.
+That installs one command, `fw`, which runs the Flamingo node.
 
 The node runs in a sandbox, which needs **Docker installed**. The sandbox is datashell's,
 not flamingo's: how it is built and started is documented in
@@ -29,11 +26,13 @@ fw up --shutdown         # Cleanly stop the nodes
 
 `fw` runs the node as a **datashell bot**, using the same api as the generic drive and bot
 CLI in [`datashell`](scripts/README.md), which this package depends on, so both see the same
-thing. The first `fw up`
-registers the code package `flamingo-node` (built by `lib/build.js`) and a bot named
-`flamingo`, whose own drive holds the wallet that becomes the node's identity. After that,
-`cli bot flamingo` reports its status, `cli bot flamingo --log` prints everything it has
-logged, and `cli bot flamingo --end` stops it exactly as `fw up --shutdown` does.
+thing. The first `fw up` registers the code package `flamingo-node` (built by `lib/build.js`)
+and a bot named `flamingo`, whose own drive holds the wallet that becomes the node's identity.
+After that, `cli bot flamingo` reports its status, `cli bot flamingo --log` prints everything
+it has logged, and `cli bot flamingo --end` stops it exactly as `fw up --shutdown` does.
+
+`cli` is datashell's own command, not one this package installs, so it is `npx cli` in a clone
+of this repo.
 
 A background `fw up` returns as soon as the bot is running, and its output goes to the
 bot's log core: `cli bot flamingo --log` prints it, while the node runs or after, and
