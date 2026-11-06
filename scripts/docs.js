@@ -17,6 +17,9 @@ const path = require('bare-path')
 const process = require('bare-process')
 const { spawn } = require('bare-subprocess')
 const packs = require('./packs')
+
+// the storage folder's name, from the one place it is defined
+const storage = path.basename(packs.STORAGE)
 const tasks = require('./tasks')
 const runtime = require('./runtime')
 
@@ -202,7 +205,7 @@ test('drive code runs straight from the drive; dynamic import() is refused', asy
   t.is((await cli('pkg', '+sneaky-code', code)).code, 0)
   const result = await cli('pkg', '+sneaky', 'sneaky-code/generate')
   t.ok(result.err.startsWith('Dynamic import is disabled'), 'refused')
-  t.absent(fs.existsSync(path.join(home, '.ds', 'code')), 'no code was copied to disk')
+  t.absent(fs.existsSync(path.join(home, storage, 'code')), 'no code was copied to disk')
 })
 
 // The one-step way to make a bot: run the generator and register the result.
@@ -257,7 +260,7 @@ test('bot <name> --log is what the bot logged, run after run', async t => {
   const first = await cli('bot', 'alice', '--log')
   t.ok(first.out.includes('sample started'), 'what the entry logged')
   t.ok(first.out.includes('sample stopping'), 'including its clean shutdown')
-  t.absent(fs.existsSync(path.join(home, '.ds', 'run', 'alice.log')), 'no log file anywhere')
+  t.absent(fs.existsSync(path.join(home, storage, 'run', 'alice.log')), 'no log file anywhere')
 
   t.is((await cli('bot', 'alice', '--run')).code, 0)
   const while_running = await cli('bot', 'alice', '--log')
@@ -273,7 +276,7 @@ test('bot <name> --log is what the bot logged, run after run', async t => {
 // command that needs it and gone once nothing is left to do. It is what makes the two
 // above work: commands no longer take the storage lock for themselves.
 test('the daemon owns the storage, so commands do not have to', async t => {
-  const pidfile = path.join(home, '.ds', 'ds.pid')
+  const pidfile = path.join(home, storage, 'ds.pid')
   t.absent(fs.existsSync(pidfile), 'nothing running between commands')
 
   t.is((await cli('bot', 'alice', '--run')).code, 0)

@@ -10,7 +10,7 @@ module.exports = remote
 // The same api as runtime.js, but over the daemon that owns the storage (daemon.js), so
 // commands no longer take the drive storage lock for themselves and a running bot's log
 // can be read. The daemon is started here if it is not up yet.
-async function remote (root = packs.ROOT) {
+async function remote (root = packs.STORAGE) {
   await fsp.mkdir(root, { recursive: true, mode: 0o700 })
   const socket = await connect(root)
   const waiting = new Map()

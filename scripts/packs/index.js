@@ -14,15 +14,16 @@ const capabilities = require('../cap')
 const { import_folder, export_folder } = require('../folder')
 const { read_json, write_json, uuid } = require('../json')
 
-const ROOT = path.join(os.homedir(), '.ds')
+// Everything the CLI keeps lives here, named once so it can be moved.
+const STORAGE = path.join(os.homedir(), '.ds')
 const LINK = /^dat:\/\/(\d+)\.(\d+)\.([a-z0-9]+)\.([a-f0-9]{64})(\/[^?]*)?(?:\?(.*))?$/
 
 module.exports = packs
-packs.ROOT = ROOT
+packs.STORAGE = STORAGE
 packs.reference = reference
 packs.drive_link = drive_link
 
-async function packs (root = ROOT) {
+async function packs (root = STORAGE) {
   let corestore = null
   let saving = Promise.resolve()
   await fsp.mkdir(root, { recursive: true, mode: 0o700 })

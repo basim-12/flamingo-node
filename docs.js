@@ -14,6 +14,7 @@ const path = require('bare-path')
 const process = require('bare-process')
 const { spawn } = require('bare-subprocess')
 const bip39 = require('bip39-mnemonic')
+const { STORAGE } = require('datashell/packs')
 
 const repo = __dirname
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'flamingo-docs-'))
@@ -78,7 +79,7 @@ test('fw up --shutdown says so when no node has been started', async t => {
   const result = await run('node', [path.join(repo, 'lib', 'cli.js'), 'up', '--shutdown'], repo)
   t.is(result.code, 0)
   t.is(result.out, 'Flamingo is not running.')
-  t.absent(fs.existsSync(path.join(home, '.ds', 'bots.json')), 'and it registered nothing')
+  t.absent(fs.existsSync(path.join(home, path.basename(STORAGE), 'bots.json')), 'and it registered nothing')
 })
 
 // lib/drive is Flamingo's code package for the bot cli: a generator that makes an
