@@ -1,0 +1,33 @@
+{
+  "name": "datashell",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Named drives, the bots that run from them, and the capabilities and sandbox they run under",
+  "main": "runtime.js",
+  "bin": {
+    "cli": "cli.js"
+  },
+  "dependencies": {
+    "acorn": "8.18.0",
+    "acorn-walk": "8.3.5",
+    "bare-crypto": "1.15.3",
+    "bare-daemon": "1.2.4",
+    "bare-fs": "4.8.1",
+    "bare-module": "7.0.1",
+    "bare-os": "3.9.3",
+    "bare-path": "3.1.2",
+    "bare-pipe": "4.3.1",
+    "bare-process": "4.5.1",
+    "bare-subprocess": "6.1.0",
+    "bare-url": "2.5.4",
+    "corestore": "6.18.4",
+    "hypercore-id-encoding": "1.3.0",
+    "hyperdrive": "11.13.4",
+    "localdrive": "2.2.1",
+    "mirror-drive": "1.10.0"
+  },
+  "devDependencies": {
+    "bare-ws": "3.1.0",
+    "brittle": "4.2.0"
+  }
+}

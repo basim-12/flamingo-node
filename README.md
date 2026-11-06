@@ -28,7 +28,8 @@ fw up --shutdown         # Cleanly stop the nodes
 ```
 
 `fw` runs the node as a **datashell bot**, using the same api as the generic drive and bot
-CLI in [`scripts/`](scripts/README.md), so both see the same thing. The first `fw up`
+CLI in [`datashell`](scripts/README.md), which this package depends on, so both see the same
+thing. The first `fw up`
 registers the code package `flamingo-node` (built by `lib/build.js`) and a bot named
 `flamingo`, whose own drive holds the wallet that becomes the node's identity. After that,
 `cli bot flamingo` reports its status, `cli bot flamingo --log` prints everything it has
@@ -165,7 +166,7 @@ Use `fw run <scenario.json>` to initialize a Lightning Network topology from a J
 
 ## Running Flamingo as a bot
 
-The drive and bot CLI in [`scripts/`](scripts/README.md) is generic. `lib/drive` is
+The drive and bot CLI in [`datashell`](scripts/README.md) is generic. `lib/drive` is
 Flamingo's code package for it: a generator and an entry. `lib/build.js` assembles the
 code drive, so build it, then create a bot from its generator:
 

@@ -8,6 +8,10 @@ run it with Bare from the flamingo-node folder; the examples below write it as `
 alias cli="npx bare scripts/cli.js"
 ```
 
+This folder is its own package, named `datashell`, so what depends on it says so rather than
+reaching into a sibling folder. Flamingo installs it with `npm install ./scripts --save` and
+requires `datashell/runtime`, `datashell/remote` and `datashell/sbx` by name.
+
 `cli.js` only reads the command line and calls the two modules it is built on:
 [packs](packs/README.md) for drives and their names, and [tasks](tasks/README.md)
 for bots running from them.
