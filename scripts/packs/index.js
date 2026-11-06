@@ -156,7 +156,7 @@ async function packs (root = ROOT) {
     try {
       if (!(await drive.entry(file)) && await drive.entry(file + '.js')) file += '.js'
       if (!(await drive.entry(file))) throw new Error(`Generator/entry file not found in the drive: ${from.file}`)
-      const fn = await run_from(drive, file)
+      const fn = await run_from(drive, file, Boolean(from.local))
       if (typeof fn !== 'function') throw new Error('Entry must export a function')
       return { fn, code }
     } finally { await close() }
@@ -224,8 +224,8 @@ async function packs (root = ROOT) {
 
   // Evaluate a module graph read straight from drive with bare module's Loader.
   // Every file goes through the drive. What it may require comes in as builtins.
-  async function run_from (drive, file) {
-    const provided = await modules_for(drive)
+  async function run_from (drive, file, own) {
+    const provided = await modules_for(drive, own)
     const protocol = new Module.Protocol({
       async exists (url) {
         return (await drive.entry(url.pathname)) !== null
@@ -245,10 +245,13 @@ async function packs (root = ROOT) {
   // What code in a drive may require: the builtins, plus whatever its own package.json
   // declares and has been granted. Declaring is not granting, so anything ungranted is
   // left out and the require that wants it says so.
-  async function modules_for (drive) {
+  //
+  // `own` is a path the user pointed at rather than a drive. It has no manifest to declare
+  // in, and they chose the file themselves, so there the grants are the whole answer.
+  async function modules_for (drive, own) {
     const provided = {}
-    const manifest = await drive.get('/package.json')
-    const declared = Object.keys(manifest ? JSON.parse(manifest).dependencies || {} : {})
+    const manifest = own ? null : await drive.get('/package.json')
+    const declared = own ? caps.list() : Object.keys(manifest ? JSON.parse(manifest).dependencies || {} : {})
     for (const name of [...capabilities.BUILTINS, ...declared]) {
       if (provided[name] || !caps.allows(name)) continue
       try {

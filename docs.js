@@ -21,11 +21,11 @@ let export_count = 0
 let code_link = ''
 
 function cli (...args) {
-  return run(process.execPath, [path.join(repo, 'scripts', 'cli.js'), ...args], repo)
+  return run(process.execPath, [path.join(repo, 'scripts', 'commands.js'), ...args], repo)
 }
 
 function cli_in (cwd, ...args) {
-  return run(process.execPath, [path.join(repo, 'scripts', 'cli.js'), ...args], cwd)
+  return run(process.execPath, [path.join(repo, 'scripts', 'commands.js'), ...args], cwd)
 }
 
 function run (program, args, cwd) {
@@ -54,6 +54,16 @@ function read_json (file) {
 }
 
 const unhook = hook('use a throwaway home folder')
+
+// What a flamingo bot's code requires, granted once for this throwaway home. Drive code
+// gets nothing until it is granted (scripts/cap/README.md), and this is the list flamingo
+// turned out to need: the generator wants bip39-mnemonic, and the bot wants to read the
+// app folder, know where it is, and spawn `fw`.
+test('grant a flamingo bot what its code requires', async t => {
+  for (const cap of ['bip39-mnemonic', 'bare-fs', 'bare-process', 'bare-subprocess', 'bare-ws']) {
+    t.is((await cli('cap', '+' + cap)).code, 0, cap)
+  }
+})
 
 // `fw` runs the Flamingo node and nothing else. Drives and bots are a separate CLI.
 test('fw has no pkg or bot commands', async t => {

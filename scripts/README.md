@@ -1,18 +1,21 @@
 # Hyperdrive packages and bots
 
 A generic CLI for named drives (`pkg`) and the bots that run from them (`bot`),
-independent of Flamingo's own `fw` command. It is installed as the `cli` command, or
-run it with Bare from the flamingo-node folder; the examples below write it as `cli`:
+independent of Flamingo's own `fw` command. It is installed as the `cli` command, and in a
+clone `npx cli` is the same thing; the examples below write it as `cli`:
 
 ```sh
-alias cli="npx bare scripts/cli.js"
+npx cli pkg
 ```
+
+`cli.js` forwards the command line to Bare using the runtime npm installed, so `bare` does
+not have to be on PATH.
 
 This folder is its own package, named `datashell`, so what depends on it says so rather than
 reaching into a sibling folder. Flamingo installs it with `npm install ./scripts --save` and
 requires `datashell/runtime`, `datashell/remote` and `datashell/sbx` by name.
 
-`cli.js` only reads the command line and calls the two modules it is built on:
+`commands.js` only reads the command line and calls the two modules it is built on:
 [packs](packs/README.md) for drives and their names, and [tasks](tasks/README.md)
 for bots running from them.
 

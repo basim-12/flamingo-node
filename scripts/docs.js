@@ -54,7 +54,7 @@ function cli_in (cwd, ...args) {
 
 // Start the CLI and hand back both the process and a promise of its output.
 function launch (cwd, args) {
-  const child = spawn(process.execPath, [path.join(repo, 'scripts', 'cli.js'), ...args], {
+  const child = spawn(process.execPath, [path.join(repo, 'scripts', 'commands.js'), ...args], {
     cwd,
     env: { ...process.env, HOME: home },
     stdio: ['ignore', 'pipe', 'pipe']
@@ -416,7 +416,7 @@ test('tasks module: start a task, let it save, stop it', async t => {
   await pkgs.close()
 })
 
-// cli.js only reads the command line; the work is in runtime.js (one api over packs and
+// commands.js only reads the command line; the work is in runtime.js (one api over packs and
 // tasks), so another command line tool can do the same things to the same storage without
 // going through argument parsing. Here is a package, a bot, its run and its log, as calls.
 test('runtime module: the cli as plain functions', async t => {
