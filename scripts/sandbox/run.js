@@ -2,7 +2,7 @@ const fsp = require('bare-fs/promises')
 const os = require('bare-os')
 const path = require('bare-path')
 const { capture } = require('./exec')
-const { import_folder, export_folder } = require('../folder')
+const { import_folder, export_folder } = require('../mirror')
 
 // The installer puts msb here and does not touch PATH, so this is where we look for it.
 const MSB = path.join(os.homedir(), '.microsandbox', 'bin', 'msb')

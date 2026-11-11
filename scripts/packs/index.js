@@ -11,7 +11,7 @@ const id_encoding = require('hypercore-id-encoding')
 const acorn = require('acorn')
 const walk = require('acorn-walk')
 const capabilities = require('../cap')
-const { import_folder, export_folder } = require('../folder')
+const { import_folder, export_folder } = require('../mirror')
 const { read_json, write_json, uuid } = require('../json')
 
 // Everything the CLI keeps lives here, named once so it can be moved.
