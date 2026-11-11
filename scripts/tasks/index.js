@@ -236,7 +236,13 @@ async function tasks (pkgs) {
     if (busy(link)) throw new Error('Cannot delete a running bot or its package')
     await pkgs.remove(link)
     const { id } = reference(link)
-    for (const name of list()) if (reference(registry[name]).id === id) delete registry[name]
+    for (const name of list()) {
+      if (reference(registry[name]).id !== id) continue
+      // What the task kept outside its drive is named after the task, so leaving it behind
+      // would hand it to the next task registered under the same name.
+      for (const kind of ['log', 'audit']) await (await pkgs.core(kind, name)).purge()
+      delete registry[name]
+    }
     await save()
   }
 
