@@ -12,6 +12,9 @@ const IMAGE = 'debian:bookworm-slim'
 // go in through a read-only mount, and whatever the code writes to the output mount comes
 // back out into the output drive, so the result of a run has an address.
 //
+// Without an output drive there is no writable mount at all, because a run that produces
+// nothing has no use for one.
+//
 // The audit core is the run's identity. Its first message says what the run was started
 // with, and the sandbox is named after the core, so a run can be found again from it.
 async function run ({ drive, mount = [], output, caps = {}, command, image = IMAGE, audit }) {
@@ -20,7 +23,7 @@ async function run ({ drive, mount = [], output, caps = {}, command, image = IMA
   // Cut short because the mount paths are built from it, and still unique to this core.
   const name = 'ds-' + audit.id.slice(0, 12)
   await audit.append(Buffer.from(JSON.stringify({
-    sandbox: name, drive: drive.id, mount: mount.map(each => each.id), output: output.id, caps, command
+    sandbox: name, drive: drive.id, mount: mount.map(each => each.id), output: output ? output.id : null, caps, command
   })))
 
   // Resolved, because a mount path that goes through a symlink is refused, and on macOS
@@ -30,7 +33,7 @@ async function run ({ drive, mount = [], output, caps = {}, command, image = IMA
   const out = path.join(work, 'out')
   await fsp.rm(work, { recursive: true, force: true }) // a crashed run can leave this behind
   await fsp.mkdir(work, { recursive: true, mode: 0o700 })
-  await fsp.mkdir(out, { mode: 0o700 })
+  if (output) await fsp.mkdir(out, { mode: 0o700 })
   await export_folder(drive, app)
 
   // Each drive it may read, under the id of the drive it came from, so code inside can tell
@@ -46,7 +49,7 @@ async function run ({ drive, mount = [], output, caps = {}, command, image = IMA
     ...network(caps),
     '--mount-dir', `${app}:/app:ro`,
     ...mounted,
-    '--mount-dir', `${out}:/out`,
+    ...(output ? ['--mount-dir', `${out}:/out`] : []),
     image, '--', ...command
   ])
 
@@ -59,7 +62,7 @@ async function run ({ drive, mount = [], output, caps = {}, command, image = IMA
     await capture(MSB, ['wait', name])
     try {
       const printed = await capture(MSB, ['logs', name])
-      await import_folder(output, out)
+      if (output) await import_folder(output, out)
       return printed
     } finally {
       await capture(MSB, ['rm', name])
