@@ -184,7 +184,7 @@ async function up (app) {
   // Remove existing stopped container if present
   if (await doesContainerExist()) {
     console.log('🧹 Clearing the previous run ...')
-    await capture('docker', ['rm', CONTAINER_NAME])
+    await capture('docker', ['rm', '-v', CONTAINER_NAME])
   }
 
   // Build the image
@@ -217,7 +217,9 @@ async function down () {
     await capture('docker', ['stop', CONTAINER_NAME])
   }
 
-  await capture('docker', ['rm', CONTAINER_NAME])
+  // -v because the compose file gives /app/node_modules no source, so each run makes an
+  // anonymous volume that nothing else will ever clean up.
+  await capture('docker', ['rm', '-v', CONTAINER_NAME])
   console.log('✅ Node stopped.')
 }
 
