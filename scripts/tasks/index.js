@@ -4,7 +4,7 @@ const path = require('bare-path')
 const process = require('bare-process')
 const crypto = require('bare-crypto')
 const { reference, drive_link } = require('../packs')
-const sandbox = require('../sbx/run')
+const sandbox = require('../sandbox/run')
 
 // An install script is JavaScript, and the image a sandbox runs by default has no runtime
 // to run it with. This is the stock upstream Node image rather than one we prepare, pinned

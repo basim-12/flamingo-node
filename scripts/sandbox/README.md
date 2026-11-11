@@ -1,4 +1,4 @@
-# sbx
+# sandbox
 
 Runs code datashell did not write, with only what it was granted. A drive holds the code, and the
 sandbox is where it is allowed to run.
@@ -24,11 +24,11 @@ putting it in the same sandbox as untrusted code offers it up to be attacked.
 
 ## Using it
 
-Nothing user facing. There is no `cli sbx`, a bot is started with `cli bot <name> --run` as
+Nothing user facing. There is no `cli sandbox`, a bot is started with `cli bot <name> --run` as
 before and the sandbox underneath is invisible. Datashell uses it through this api:
 
 ```js
-const run = require('./sbx/run')
+const run = require('./sandbox/run')
 
 const sandbox = await run({ drive, mount, output, caps, command, audit })
 
@@ -67,7 +67,7 @@ granted separately, in [cap](../cap/README.md):
 { ports: ['8080:8080'] }                             // no egress, reachable on one port
 ```
 
-Separate from all of that is what flamingo-node calls through `require('../scripts/sbx')`:
+Separate from all of that is what flamingo-node calls through `require('../scripts/sandbox')`:
 one prepared image under Docker, started and stopped.
 
 | | |

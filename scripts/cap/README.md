@@ -1,7 +1,7 @@
 # cap
 
 What a drive's code may use, and how it comes to be allowed. Where it runs is
-[sbx](../sbx/README.md).
+[sandbox](../sandbox/README.md).
 
 
 ## Two boundaries
@@ -20,7 +20,7 @@ written in JS and does not use Bare; it is a binary on the linux inside the sand
 policy. With microsandbox that policy is detailed enough to be useful: egress and ingress
 separately, per protocol, per port, per domain or ip, nothing allowed unless a rule says so,
 and only the paths that were mounted. The flags are in
-[sbx](../sbx/README.md#what-microsandbox-gives-us).
+[sandbox](../sandbox/README.md#what-microsandbox-gives-us).
 
 So a capability is one of two things, or both:
 
@@ -55,7 +55,7 @@ unable to reach a peer. Asking for `bitcoind` asks for both, and the prompt says
 ## What there can be asked for
 
 The categories, named datashell-side. What enforces each one is the sandbox's business, and the
-flags that do it are in [sbx](../sbx/README.md#what-microsandbox-gives-us).
+flags that do it are in [sandbox](../sandbox/README.md#what-microsandbox-gives-us).
 
 | | |
 | --- | --- |

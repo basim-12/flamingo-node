@@ -13,7 +13,7 @@ That installs one command, `fw`, which runs the Flamingo node.
 
 The node runs in a sandbox, which needs **Docker installed**. The sandbox is datashell's,
 not flamingo's: how it is built and started is documented in
-[scripts/sbx/README.md](scripts/sbx/README.md).
+[scripts/sandbox/README.md](scripts/sandbox/README.md).
 
 ## CLI Reference
 
@@ -63,7 +63,7 @@ The host side runs on Bare; only the entrypoint that runs inside the sandbox sta
 | --- | --- | --- |
 | `lib/cli.js` | Node | What `fw` points at. Forwards the command line to Bare using the runtime npm installed, so a `#!/usr/bin/env node` shebang is enough on machines without `bare` on PATH. |
 | `lib/fw.js` | Bare | The host CLI: reads the arguments and calls the api. |
-| `lib/flamingo.js`, `lib/scenario-runner.js` | both | The api. The sandbox under it is datashell's, in [scripts/sbx](scripts/sbx/README.md). An `imports` map points `child_process`, `fs`, `os`, `path` and `process` at the `bare-*` packages when Bare resolves them; Node ignores the map because its keys don't start with `#`. |
+| `lib/flamingo.js`, `lib/scenario-runner.js` | both | The api. The sandbox under it is datashell's, in [scripts/sandbox](scripts/sandbox/README.md). An `imports` map points `child_process`, `fs`, `os`, `path` and `process` at the `bare-*` packages when Bare resolves them; Node ignores the map because its keys don't start with `#`. |
 | `lib/env.js` | both | Where `env.json` is and how it is read. Its own module so the entrypoint inside the sandbox can have the settings without requiring the api, which would pull the sandbox in with it. |
 | `lib/start.js` | Node | What runs inside the sandbox, which `fw start` runs directly. bitcoind, lightningd and the WebSocket daemon need Node, so nothing on this path goes through Bare. |
 

@@ -13,7 +13,7 @@ not have to be on PATH.
 
 This folder is its own package, named `datashell`, so what depends on it says so rather than
 reaching into a sibling folder. Flamingo installs it with `npm install ./scripts --save` and
-requires `datashell/runtime`, `datashell/remote` and `datashell/sbx` by name.
+requires `datashell/runtime`, `datashell/remote` and `datashell/sandbox` by name.
 
 `commands.js` only reads the command line and calls the two modules it is built on:
 [packs](packs/README.md) for drives and their names, and [tasks](tasks/README.md)
@@ -189,11 +189,11 @@ subject of two modules:
 
 | | |
 | --- | --- |
-| [`sbx`](sbx/README.md) | where code from a drive runs, so it reaches only what it was granted. Docker today, microsandbox next. |
+| [`sandbox`](sandbox/README.md) | where code from a drive runs, so it reaches only what it was granted. Docker today, microsandbox next. |
 | [`cap`](cap/README.md) | what a drive may ask for, how it is granted and remembered, and `cli cap`. |
 
 Both are written down before they are built, so the model can be argued with first. What
-exists today is the module in `sbx/` that starts and stops the Flamingo node, which
+exists today is the module in `sandbox/` that starts and stops the Flamingo node, which
 flamingo-node calls into; the rest is design.
 
 ## The daemon
