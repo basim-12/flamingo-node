@@ -229,6 +229,13 @@ wanted:
 This drive requires bare-fs, which it was not granted
 ```
 
+A drive that never declared it gets the ordinary missing-module error instead, because from
+the code's side that is what happened: it asked for nothing, so nothing was put there.
+
+```
+Cannot find module 'bare-fs'
+```
+
 ## What a drive declares
 
 Two fields, and the split is not what it was in the first draft of this readme. `dependencies`

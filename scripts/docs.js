@@ -375,7 +375,7 @@ test('a drive declares what it needs, and a grant lets it have it', async t => {
   t.is((await cli('pkg', '+from-granted', 'listed/generate')).code, 0, 'declared and granted, so it is there')
 
   t.is((await cli('pkg', '+unlisted', fixture('unlisted-code', null))).code, 0)
-  t.is((await cli('pkg', '+from-unlisted', 'unlisted/generate')).err, 'This drive requires bare-ws without declaring it in package.json', 'a grant is not a declaration either')
+  t.is((await cli('pkg', '+from-unlisted', 'unlisted/generate')).err, "Cannot find module 'bare-ws'", 'a grant is not a declaration either')
 
   t.is((await cli('pkg', '+absent', fixture('absent-code', { 'no-such-module': '1.0.0' }))).code, 0)
   t.is((await cli('cap', '+no-such-module')).code, 0)

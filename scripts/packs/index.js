@@ -279,8 +279,10 @@ function validate_cjs (source, url, provided, allows) {
       if (node.callee.name !== 'require') return
       const [arg] = node.arguments
       if (arg?.type !== 'Literal' || /^\.{0,2}\//.test(arg.value) || arg.value in provided) return
+      // Undeclared reads as missing, because from the code's side it is: the drive never
+      // asked for it, so nothing was ever put there.
       throw new Error(allows(arg.value)
-        ? `This drive requires ${arg.value} without declaring it in package.json`
+        ? `Cannot find module '${arg.value}'`
         : `This drive requires ${arg.value}, which it was not granted`)
     }
   })
