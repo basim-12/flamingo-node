@@ -45,10 +45,20 @@ async function tasks (pkgs) {
     return registry[name]
   }
 
-  function info (name) {
+  // The output drive is listed whether or not anything has been built into it yet, because
+  // its address is the same either way and that is what a later run hands on.
+  async function info (name) {
     const link = registry[name]
     if (!link) throw new Error(`Unknown bot: ${name}`)
-    return `Name: ${name}\nDrive: ${link}\nPackage: ${pkgs.find(link) || '(unnamed)'}\nStatus: ${busy(link) ? 'running' : 'stopped'}`
+    const out = await output_drive(name)
+    try {
+      return `Name: ${name}\nDrive: ${link}\nPackage: ${pkgs.find(link) || '(unnamed)'}\nOutput: ${await drive_link(out)}\nStatus: ${busy(link) ? 'running' : 'stopped'}`
+    } finally { await out.close() }
+  }
+
+  // Where a task's build lands. The same name always reopens the same drive.
+  function output_drive (name) {
+    return pkgs.disk('build', name)
   }
 
   // A task runs if this process runs it, or a live process claims it in its pidfile.
@@ -109,7 +119,7 @@ async function tasks (pkgs) {
       const code = await pkgs.open_drive(await config(opened.drive))
       try {
         if (!await code.view.entry('/install.js')) return 'Nothing to build'
-        const out = await pkgs.disk('build', name)
+        const out = await output_drive(name)
         const said = (printed, line) => printed ? `${printed}\n${line}` : line
         try {
           const run = await sandbox({
@@ -170,7 +180,7 @@ async function tasks (pkgs) {
     const pidfile = path.join(run_dir, name + '.pid')
     await fsp.mkdir(run_dir, { recursive: true, mode: 0o700 })
     await fsp.writeFile(pidfile, JSON.stringify({ pid: process.pid, started: Date.now() }) + '\n', { mode: 0o600 })
-    log(info(name))
+    log(await info(name))
 
     run.done = (async () => {
       try {
@@ -195,7 +205,7 @@ async function tasks (pkgs) {
           running.delete(name)
         }
       }
-      return info(name)
+      return await info(name)
     })()
     return { done: run.done, stop }
   }

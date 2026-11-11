@@ -63,7 +63,7 @@ async function main () {
       result => reply({ id, result }),
       err => reply({ id, error: err.message })
     )
-    if (!attached) send(socket, { id, result: ds.bot.info(name) })
+    if (!attached) send(socket, { id, result: await ds.bot.info(name) })
 
     function reply (message) {
       running.delete(name)

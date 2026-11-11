@@ -407,9 +407,9 @@ test('tasks module: start a task, let it save, stop it', async t => {
   const created = await bots.create('hello', 'code/generate', repo)
 
   await bots.start('hello', () => {})
-  t.ok(bots.info('hello').includes('Status: running'), 'running')
+  t.ok((await bots.info('hello')).includes('Status: running'), 'running')
   await bots.end('hello')
-  t.ok(bots.info('hello').includes('Status: stopped'), 'stopped')
+  t.ok((await bots.info('hello')).includes('Status: stopped'), 'stopped')
 
   t.not(bots.get('hello'), created, 'moved to a newer revision')
   t.is(pkgs.get('hello'), bots.get('hello'), 'package moved with it')
@@ -429,7 +429,7 @@ test('runtime module: the cli as plain functions', async t => {
   t.alike([ds.pkg.list(), ds.bot.list()], [['code', 'hello'], ['hello']], 'a code package, a bot, and the bot drive registered too')
 
   const run = await ds.bot.attach('hello', () => {})
-  t.ok(ds.bot.info('hello').includes('Status: running'), 'running')
+  t.ok((await ds.bot.info('hello')).includes('Status: running'), 'running')
   await ds.bot.end('hello')
   await run.done
   t.ok((await ds.bot.log('hello')).includes('sample stopping'), 'its log core has what it printed')

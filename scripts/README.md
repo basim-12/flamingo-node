@@ -140,7 +140,7 @@ run them; nothing starts them automatically.
 | Command | Action and behavior |
 | --- | --- |
 | `cli bot +<name> <specifier>` | Register a stopped bot. `<specifier>` must name a drive — package name, drive id or `dat://` reference — because a bot pins its code to a drive; local paths are refused. A drive on its own is used as the configuration drive directly (it must already contain a valid `bot.json`). `<drive>/generate` runs that drive's generator into a fresh bot drive, the CLI writes its `bot.json`, and it is registered as a package under `<name>` too. Reject an existing bot name, a package-name conflict, or a configuration drive already registered to another bot (checked by drive id). |
-| `cli bot <name>` / `cli bot <name> --see` | Show its drive reference, package name if available, and running/stopped status. |
+| `cli bot <name>` / `cli bot <name> --see` | Show its drive reference, package name if available, the address of the drive its builds land in, and running/stopped status. The output drive is listed before anything has been built into it, because its address does not change. |
 | `cli bot` | List registered bots. |
 | `cli bot <name> --run` | Verify and launch the entry from bot.json in the background, and return once it runs. Reuse existing bot data and identity. A bot is a singleton: refuse if it, or another bot on the same drive, is already running. |
 | `cli bot <name> --run --attach` | The same, but in this terminal; Ctrl+C stops it. |
