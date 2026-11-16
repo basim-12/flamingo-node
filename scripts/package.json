@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Named drives, the bots that run from them, and the capabilities and sandbox they run under",
-  "main": "runtime.js",
+  "main": "index.js",
   "bin": {
     "cli": "cli.js"
   },

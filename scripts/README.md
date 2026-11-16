@@ -13,7 +13,8 @@ not have to be on PATH.
 
 This folder is its own package, named `datashell`, so what depends on it says so rather than
 reaching into a sibling folder. Flamingo installs it with `npm install ./scripts --save` and
-requires `datashell/runtime`, `datashell/remote` and `datashell/sandbox` by name.
+requires `datashell` and nothing inside it: `index.js` is the whole surface, so which file a
+thing lives in stays datashell's business.
 
 `commands.js` only reads the command line and calls the two modules it is built on:
 [packs](packs/README.md) for drives and their names, and [tasks](tasks/README.md)

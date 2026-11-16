@@ -67,7 +67,7 @@ granted separately, in [cap](../cap/README.md):
 { ports: ['8080:8080'] }                             // no egress, reachable on one port
 ```
 
-Separate from all of that is what flamingo-node calls through `require('../scripts/sandbox')`:
+Separate from all of that is what is reached as `require('datashell').sandbox`:
 one prepared image under Docker, started and stopped.
 
 | | |

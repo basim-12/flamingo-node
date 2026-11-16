@@ -14,7 +14,7 @@ const path = require('bare-path')
 const process = require('bare-process')
 const { spawn } = require('bare-subprocess')
 const bip39 = require('bip39-mnemonic')
-const { STORAGE } = require('datashell/packs')
+const { STORAGE } = require('datashell')
 
 const repo = __dirname
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'flamingo-docs-'))
