@@ -11,7 +11,7 @@ const tasks = require('./tasks')
 
 const pkgs = await packs()
 const bots = await tasks(pkgs)
-await bots.create('alice', 'flamingo-node/generate?ask=no', process.cwd())
+await bots.create('alice', 'my-app/generate?ask=no', process.cwd())
 const { done } = await bots.start('alice', console.log) // and into the task's log core
 // … later, from this process:
 await bots.end('alice')
@@ -68,7 +68,7 @@ Reading the names needs no store, so it works while a running task holds one.
 | `close()` | Wait for pending saves. |
 | `list()` | Task names, sorted. |
 | `get(name)` | The task's drive reference, or `undefined`. |
-| `info(name)` | `Name`, `Drive`, `Package` and `Status` (running/stopped) lines. Throws for an unknown name. |
+| `info(name)` | `Name`, `Drive`, `Package`, `Output` (the drive its builds land in) and `Status` (running/stopped) lines. Async, because the output address comes from that drive. Throws for an unknown name. |
 | `busy(link)` | Whether any task on the drive behind `link` is running. |
 | `create(name, spec, cwd)` | Register a task. `spec` names a drive that already holds `bot.json`, or a generator in a drive (`<drive>/generate`). A generator fills a fresh drive, which is also registered as a pack under `name`, and `bot.json` is written for it. Refused if the drive already belongs to another task. Returns the drive's reference. |
 | `start(name, print)` | Run the task's entry in this process. Writes `run/<name>.pid`, appends everything the task logs to its log core, and keeps the task's and its packs' references on the latest revision as it saves data. Returns `{ done, stop }`: `done` settles once the task has finished. |

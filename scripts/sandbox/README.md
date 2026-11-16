@@ -77,7 +77,7 @@ one prepared image under Docker, started and stopped.
 | `logs()` | follow its output in this terminal until Ctrl+C |
 | `down()` | stop bitcoind and the lightning nodes cleanly, then take the node down, waiting for each so nothing is killed mid write |
 
-So there are two sandboxes for now, because flamingo's node still needs its prepared image.
+So there are two sandboxes for now, because the prepared image still has a user.
 `run` is the one that takes any drive, but it does not run a *bot* yet: `cli bot <name> --run`
 still runs drive code in the daemon. Moving that across is what makes the sandbox invisible,
 and it is the next step.
@@ -152,9 +152,9 @@ Everything below was run on this machine, not read off their docs.
 - **Isolation.** A microVM per sandbox with its own kernel, booted as a child process, no
   daemon and no long-running service. A sandbox boots in about twelve seconds including an
   image pull.
-- **Our Docker image goes in unchanged.** `docker save flamingo-app:latest` followed by
-  `msb image load -i <tar> -t flamingo-app:latest` imported the 322MB image in two seconds,
-  with no registry and no rebuild. Whatever Docker builds today can run in a sandbox tomorrow.
+- **An existing Docker image goes in unchanged.** `docker save <image>` followed by
+  `msb image load -i <tar> -t <image>` imported a 322MB one in two seconds, with no registry
+  and no rebuild. Whatever Docker builds today can run in a sandbox tomorrow.
 - **The network is not denied by default.** A plain `msb run` reached the public internet. The
   default egress action is deny *with an implicit `allow@public` rule when no other rules are
   present*, which amounts to the same thing. Denying is something you have to ask for:
@@ -190,6 +190,11 @@ but uid, a writable root filesystem and `dmesg_restrict` all looked identical un
 profiles here, so it needs a closer look before it is relied on.
 
 ## How it works today
+
+Everything in this section is the older module, and it is the one part of datashell that is
+not generic: it names one container and one image, and reads the compose file of one
+dependency. That is why a particular node shows up in datashell at all. It goes when `run`
+takes over, and until then saying so is better than writing around it.
 
 - **Docker.** `install.js` checks `docker --version` and installs Docker if it is missing
   (`get.docker.com` on linux and macOS, winget on Windows). Docker has to be available for

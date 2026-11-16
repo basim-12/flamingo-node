@@ -1,8 +1,8 @@
 # Hyperdrive packages and bots
 
-A generic CLI for named drives (`pkg`) and the bots that run from them (`bot`),
-independent of Flamingo's own `fw` command. It is installed as the `cli` command, and in a
-clone `npx cli` is the same thing; the examples below write it as `cli`:
+A CLI for named drives (`pkg`) and the bots that run from them (`bot`). It is installed as
+the `cli` command, and in a clone `npx cli` is the same thing; the examples below write it
+as `cli`:
 
 ```sh
 npx cli pkg
@@ -12,9 +12,9 @@ npx cli pkg
 not have to be on PATH.
 
 This folder is its own package, named `datashell`, so what depends on it says so rather than
-reaching into a sibling folder. Flamingo installs it with `npm install ./scripts --save` and
-requires `datashell` and nothing inside it: `index.js` is the whole surface, so which file a
-thing lives in stays datashell's business.
+reaching into a sibling folder. A dependent installs it with `npm install ./scripts --save`
+and requires `datashell` and nothing inside it: `index.js` is the whole surface, so which file
+a thing lives in stays datashell's business.
 
 `commands.js` only reads the command line and calls the two modules it is built on:
 [packs](packs/README.md) for drives and their names, and [tasks](tasks/README.md)
@@ -176,12 +176,6 @@ cli bot demo --log      # what it logged, this run and every earlier one
 cli bot -demo
 ```
 
-## For example
-
-Flamingo's own generator, entry and bot live in `lib/drive` and are described in
-[Running Flamingo as a bot](../README.md#running-flamingo-as-a-bot). Useful as a
-worked example of what a real generator and entry look like.
-
 ## Sandboxing and capabilities
 
 A drive can say which JS modules its code needs, and the loader provides them (see
@@ -194,8 +188,8 @@ subject of two modules:
 | [`cap`](cap/README.md) | what a drive may ask for, how it is granted and remembered, and `cli cap`. |
 
 Both are written down before they are built, so the model can be argued with first. What
-exists today is the module in `sandbox/` that starts and stops the Flamingo node, which
-flamingo-node calls into; the rest is design.
+exists today is `run`, which takes any drive, and an older module beside it that starts and
+stops one prepared image; the rest is design.
 
 ## The daemon
 

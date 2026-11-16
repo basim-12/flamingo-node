@@ -9,8 +9,8 @@ const process = require('bare-process')
 const packs = require('./packs')
 
 const pkgs = await packs() // under packs.STORAGE unless you pass somewhere else
-await pkgs.create('flamingo-node', './lib/drive', process.cwd())
-console.log(pkgs.info('flamingo-node')) // Name: flamingo-node / Drive: dat://…
+await pkgs.create('my-app', './src', process.cwd())
+console.log(pkgs.info('my-app')) // Name: my-app / Drive: dat://…
 await pkgs.close()
 ```
 
