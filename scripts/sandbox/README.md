@@ -108,10 +108,20 @@ feed of messages and an addressable drive, and the paths in the first point into
 
 ## Identity, and resuming
 
-Every run has an **audit core**. Its first message records the parameters it was started with:
-the id of the input core, and the addresses of `drive`, `mount`, `output` and `caps`. The
-sandbox's id is derived from that core, so the core is both the record of what a run was
-allowed and the handle to find it again.
+Every task has an **audit core**, one across all of its runs rather than one per run. A run
+and an end are both entries in it, so the core reads as when the task started, when it
+stopped, and what it was given in between. The sandbox's id is derived from the core, so the
+core is both the record of what a run was allowed and the handle to find it again.
+
+An entry is `{ head, refs, type, data, meta }`:
+
+| | |
+| --- | --- |
+| `head` | `['datashell', sandbox, began]`, where `began` is the index of the run entry, so an end pairs with its own beginning |
+| `refs` | the addresses it was given: `drive`, `mount`, `output` |
+| `type` | `run` or `end` |
+| `data` | what the run was started with, or how it ended |
+| `meta` | `time`, so the core says when |
 
 Resuming is then one lookup. Given a sandbox id, its audit core says what it was, which
 drives it had and which caps were granted, and it starts again on the same terms without

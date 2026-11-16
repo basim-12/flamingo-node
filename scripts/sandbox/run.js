@@ -15,16 +15,19 @@ const IMAGE = 'debian:bookworm-slim'
 // Without an output drive there is no writable mount at all, because a run that produces
 // nothing has no use for one.
 //
-// The audit core is the run's identity. Its first message says what the run was started
-// with, and the sandbox is named after the core, so a run can be found again from it.
+// The audit core is the run's identity, and one core serves a task across its runs: a run
+// and an end are both entries, so the core reads as when it started, when it stopped, and
+// what it was given in between. The sandbox is named after the core, so a run can be found
+// again from it.
 async function run ({ drive, mount = [], output, caps = {}, command, image = IMAGE, audit }) {
   await need_msb()
   await audit.ready()
   // Cut short because the mount paths are built from it, and still unique to this core.
   const name = 'ds-' + audit.id.slice(0, 12)
-  await audit.append(Buffer.from(JSON.stringify({
-    sandbox: name, drive: drive.id, mount: mount.map(each => each.id), output: output ? output.id : null, caps, command
-  })))
+  // Where this run's entries start, so its end can be paired with its beginning.
+  const began = audit.length
+  let stopped = false
+  await entry('run', { caps, command, image })
 
   // Resolved, because a mount path that goes through a symlink is refused, and on macOS
   // the temporary folder is behind one.
@@ -53,7 +56,24 @@ async function run ({ drive, mount = [], output, caps = {}, command, image = IMA
     image, '--', ...command
   ])
 
-  return { id: audit.id, done: wait(), stop: () => capture(MSB, ['stop', name]) }
+  return {
+    id: audit.id,
+    done: wait(),
+    stop: () => {
+      stopped = true
+      return capture(MSB, ['stop', name])
+    }
+  }
+
+  function entry (type, data) {
+    return audit.append(Buffer.from(JSON.stringify({
+      head: ['datashell', name, began],
+      refs: { drive: drive.id, mount: mount.map(each => each.id), output: output ? output.id : null },
+      type,
+      data,
+      meta: { time: Date.now() }
+    })))
+  }
 
   // Settles when the code inside finishes, whether it stopped on its own or stop was
   // called. What it printed is the result, and what it wrote is in the output drive by
@@ -65,6 +85,7 @@ async function run ({ drive, mount = [], output, caps = {}, command, image = IMA
       if (output) await import_folder(output, out)
       return printed
     } finally {
+      await entry('end', { stopped })
       await capture(MSB, ['rm', name])
       await fsp.rm(work, { recursive: true, force: true })
     }
