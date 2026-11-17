@@ -44,7 +44,6 @@ sandbox.stop()          // stop it, and what it wrote so far is still collected
 | `output` | the drive that receives whatever the code writes to `/out`, so a run's result is addressable |
 | `caps` | what it was granted. Nothing by default: no network at all, and nothing writable but `/out` |
 | `command` | what to run inside, as the image sees it |
-| `image` | what to run it in. A stock `debian:bookworm-slim` unless something needs more |
 | `audit` | the hypercore that identifies the run, and holds what it was started with |
 
 A one-shot `run` cannot tell a failure from a success. `done` gives what the code printed, and
@@ -52,12 +51,25 @@ A one-shot `run` cannot tell a failure from a success. `done` gives what the cod
 build works around it with a marker file. Through `open` below the question does not come up,
 because `msb exec` does return the real exit code.
 
-A build passes an `image` of its own, because an install script is JavaScript and the default
-base has no runtime to run it with. It is the stock upstream Node image pinned by digest, not
-one we prepare. Carrying a runtime into the stock base was the first attempt and it does not
-work: Node's linux build wants `libatomic`, which no stock debian or ubuntu image has, and a
-lone Bare binary exposes `Bare` and nothing else, so an install script would have no
-filesystem and no subprocesses.
+### One image, and no option to pick another
+
+There is no `image`. Everything datashell runs, runs in the same one.
+
+A sandbox that takes any image means ten bots pull ten images that do the same job. There are
+seven here from testing and together they are 1.4 GiB, while one shared image is 80 MiB however
+many bots use it. This module could offer the choice if it were published on its own, and
+anything that really needs its own base can install a container runtime inside the sandbox;
+datashell does not take the option.
+
+The image is `node:26-bookworm-slim`, stock upstream and pinned by digest, so it is the same
+thing every time and not something we maintain. It carries Node because a setup script is still
+run inside as JavaScript. Once that script runs outside instead, nothing in the sandbox needs a
+runtime and the base can be smaller.
+
+Carrying a runtime into a bare base was the first attempt and it does not work: Node's linux
+build wants `libatomic`, which no stock debian or ubuntu image has, and a lone Bare binary
+exposes `Bare` and nothing else, so a setup script would have no filesystem and no
+subprocesses.
 
 `caps` here is what the sandbox is allowed to reach. The modules a drive may require are
 granted separately, in [cap](../cap/README.md):

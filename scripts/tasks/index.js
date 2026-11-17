@@ -6,13 +6,6 @@ const crypto = require('bare-crypto')
 const { reference, drive_link } = require('../packs')
 const { run: sandbox } = require('../sandbox/run')
 
-// An install script is JavaScript, and the image a sandbox runs by default has no runtime
-// to run it with. This is the stock upstream Node image rather than one we prepare, pinned
-// by digest so a build gets the same thing every time. Node and not Bare because an
-// install script wants a filesystem and subprocesses, and a lone Bare binary carries
-// neither; the install.js in the flamingo-docker dependency is already `#!/usr/bin/env node`.
-const BUILD_IMAGE = 'node:26-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9'
-
 module.exports = tasks
 
 // Things that run from a pack's drive and can be stopped and started again, such as
@@ -106,8 +99,8 @@ async function tasks (pkgs) {
   // Prepare what the task needs without running it. A drive says how by holding a setup.js,
   // which is optional: without one there is nothing to prepare and the entry runs against the
   // base image as it comes. It is setup rather than install because a drive may configure what
-  // it is given as well as install into it. The script runs in a sandbox with a Node carried
-  // in, reaching nothing of the user's, and whatever it writes becomes a drive of its own. The
+  // it is given as well as install into it. The script runs in the one sandbox image, reaching
+  // nothing of the user's, and whatever it writes becomes a drive of its own. The
   // bot's drive keeps that drive's pinned reference, so the hash says what was built and a
   // second build has nothing left to do.
   async function build (name) {
@@ -127,7 +120,6 @@ async function tasks (pkgs) {
           const run = await sandbox({
             drive: code.view,
             output: out,
-            image: BUILD_IMAGE,
             // The marker is how a failure is told from a success: microsandbox reports a
             // stopped sandbox without the exit code of what ran in it.
             command: ['sh', '-c', 'node /app/setup.js && touch /out/.built'],
