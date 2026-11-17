@@ -71,6 +71,40 @@ build wants `libatomic`, which no stock debian or ubuntu image has, and a lone B
 exposes `Bare` and nothing else, so a setup script would have no filesystem and no
 subprocesses.
 
+### Trying void linux as that base
+
+It works. `ghcr.io/void-linux/void-glibc:latest` pulls under `msb` in five seconds and boots,
+and the image is 24.9 MiB rather than the 60MB it is usually described as. It is minimal: 163
+binaries, `xbps-install`, and no `git`, `curl`, `tar`, `gzip` or `find`.
+
+`bubblewrap` is one package and 2.4 MB, and it works in the microVM.
+`bwrap --ro-bind / / --unshare-all --die-with-parent` confines a subprocess the way it should,
+so a wrapper that limits what a subprocess may reach can be built on it.
+
+`git` costs about 135 MB. void's package depends on `perl-Authen-SASL`, `perl-MIME-tools` and
+`perl-Net-SMTP-SSL`, so it pulls perl in, and perl is 77.6 MB against git's own 51.2 MB. Those
+three dependencies are there for `git send-email`. There is no lighter git in the repository.
+
+`bare` runs, v1.33.0 linux arm64, with none of the `libatomic` trouble Node's build has. The
+binary is 94 MB, which is more than everything else in the image put together.
+
+Exporting a prepared sandbox gives tar and zstd, which is the nearest thing here to a shippable
+artifact:
+
+| | exported |
+| --- | --- |
+| void, `git` and `bubblewrap` | 72 MB |
+| the same, plus `bare` | 124 MB |
+| `node:26-bookworm-slim`, what we run today | 80.1 MiB |
+
+So the answer depends on `bare`. Without it we are a little under what we run now, with it half
+again as much. A drive's script runs outside the sandbox and issues commands into it, so nothing
+inside needs a runtime, and the version without `bare` is the one to take.
+
+How a prepared base is produced and shipped is not solved. `msb snapshot` is a 4 GiB sparse disk
+and its export is a `.msb` archive rather than an OCI image, so adopting this means shipping
+that archive or building the image some other way.
+
 `caps` here is what the sandbox is allowed to reach. The modules a drive may require are
 granted separately, in [cap](../cap/README.md):
 
