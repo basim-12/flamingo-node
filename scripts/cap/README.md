@@ -280,10 +280,12 @@ One mechanism, expressed in the thing datashell already has. It is also the cach
 is a versioned drive, so a second run mounts it instead of installing again, and an older
 revision is a rollback.
 
-`cli bot <name> --build` is how it gets built without being run. A drive says how by holding an
-`install.js`, so a drive without one has nothing to build, which is the no-op case. What the
-script writes becomes a drive of its own, and the bot's drive keeps that drive's reference, so
-building again has nothing left to do.
+`cli bot <name> --build` is how it gets built without being run. A drive says how by holding a
+`setup.js`, which is optional: without one there is nothing to build, which is the no-op case,
+and the bot runs against the base image as it comes. It is setup rather than install because a
+drive may configure what it is given as well as install into it. What the script writes becomes
+a drive of its own, and the bot's drive keeps that drive's reference, so building again has
+nothing left to do.
 
 **Reproducibility is the hard part, and we should not pretend otherwise.** The same install run
 twice into two fresh sandboxes does match: `apt-get install jq` produced an identical hash over

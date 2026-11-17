@@ -44,7 +44,7 @@ things.
 | `cli bot` | Every bot, as the same block `cli bot <name>` prints for one |
 | `cli bot +<name> <specifier>` | Make a bot. A generator fills its drive first |
 | `cli bot <name>`, or `--see` after it | Name, drive, package, output drive, and running or stopped |
-| `cli bot <name> --build` | Run the drive's `install.js` in a sandbox, into the output drive |
+| `cli bot <name> --build` | Run the drive's `setup.js` in a sandbox, into the output drive |
 | `cli bot <name> --run` | Start it in the background |
 | `cli bot <name> --run --attach` | Start it here and stream its output until it stops |
 | `cli bot <name> --log` | Everything it has logged, across every run |
@@ -63,8 +63,9 @@ cli bot +mybot demo/generate.js
 The output drive is listed from the start, at length `0` until something is built into it,
 because its address is the same either way and that is what a later run is handed.
 
-`--build` says `Nothing to build` for a drive with no `install.js`, and nothing to do on a
-second run, because what it built is pinned in the drive.
+`setup.js` is optional. `--build` says `Nothing to build` for a drive without one, and a bot
+with no setup runs against the base image as it comes. A second build has nothing to do either,
+because what the first one built is pinned in the drive.
 
 A bot's log is its own, not the terminal's: it outlives the run, and `--log` reads it
 whether the bot is running or stopped. Its first lines are the block above, as it stood

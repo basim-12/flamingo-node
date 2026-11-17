@@ -228,7 +228,7 @@ not generic: it names one container and one image, and reads the compose file of
 dependency. That is why a particular node shows up in datashell at all. It goes when `run`
 takes over, and until then saying so is better than writing around it.
 
-- **Docker.** `install.js` checks `docker --version` and installs Docker if it is missing
+- **Docker.** This module's own `install.js` checks `docker --version` and installs Docker if it is missing
   (`get.docker.com` on linux and macOS, winget on Windows). Docker has to be available for
   any of this to work, and this module is the only place that checks.
 - **The image** is built from the `Dockerfile` in the
