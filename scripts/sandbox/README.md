@@ -105,6 +105,33 @@ How a prepared base is produced and shipped is not solved. `msb snapshot` is a 4
 and its export is a `.msb` archive rather than an OCI image, so adopting this means shipping
 that archive or building the image some other way.
 
+### Docker inside a sandbox
+
+That works too. `apt-get install docker.io` in the standard image takes about 50 seconds and
+gives debian's 20.10.24. A sandbox has no systemd, so `dockerd` is started directly, and after
+that containers run and share the microVM's kernel.
+
+The microVM has what a container runtime needs: kernel 6.12, cgroup v2, overlayfs, netfilter,
+`/dev/net/tun`, and root. Volume mounts work in both directions and a container reaches the
+internet.
+
+The published port is the part worth proving, because it has two hops to make. A container
+publishing into the sandbox, with the sandbox itself created with `-p`, answers `curl` on the
+host. So a node running under Docker inside a sandbox can still serve something outside it.
+
+The storage driver needs a hand. Docker chooses `vfs` by itself, because `overlay2` cannot stack
+on the sandbox's own overlay root and gives `failed to mount overlay: invalid argument`. `vfs`
+copies whole layers rather than sharing them, so it runs but wastes disk. Installing
+`fuse-overlayfs` and starting `dockerd --storage-driver fuse-overlayfs` gives a layered driver,
+and containers behave the same.
+
+Two things to know when writing that setup: these images have no `pkill`, and a `dockerd` that
+was killed leaves `/var/run/docker.pid` behind, which stops the next one starting.
+
+Which means dropping Docker from datashell is possible. Whatever still wants it can install it
+into its own sandbox as part of its setup, and the host's Docker stops being something we
+require.
+
 `caps` here is what the sandbox is allowed to reach. The modules a drive may require are
 granted separately, in [cap](../cap/README.md):
 
@@ -306,9 +333,9 @@ takes over, and until then saying so is better than writing around it.
   was granted. What replaces that is the handle above: the drive's own code runs out here
   under Bare resolving nothing else, so it has no power of its own, and everything it wants
   done becomes a command in the sandbox.
-- **Docker inside the sandbox** for a drive that needs a base we do not offer: install
-  `docker.io` in the microVM and run containers there, which is a Docker daemon of its own and
-  not a hole in the host's. Eventually through something like `require('bare-docker')`.
+- **Docker inside the sandbox** for a drive that needs a base we do not offer, which is tested
+  above: a Docker daemon of its own in the microVM, not a hole in the host's. Eventually through
+  something like `require('bare-docker')`.
 - **Less Docker over time.** If a base image's filesystem is itself a hyperdrive, a set of
   drives mounted into an empty base replaces the image, versioned like layers and with the
   same rollback. `localdrive` and `mirror-drive` already do the checkout, watch and copy, so
