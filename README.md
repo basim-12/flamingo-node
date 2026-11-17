@@ -1,7 +1,8 @@
 # Flamingo Node
 
-Bitcoin Lightning Network backend — manages bitcoind, lightningd, and a WebSocket bridge.
-
+A Bitcoin and Lightning node you can run with one command. It starts bitcoind and
+lightningd and puts a WebSocket API in front of them, which is what
+[flamingo-wallet](https://github.com/playproject-io/flamingo-wallet) talks to.
 
 ## Install
 
@@ -9,73 +10,72 @@ Bitcoin Lightning Network backend — manages bitcoind, lightningd, and a WebSoc
 npm install -g flamingo-node
 ```
 
-That installs one command, `fw`, which runs the Flamingo node.
+That installs one command, `fw`.
 
-The node runs in a sandbox, which needs **Docker installed**. The sandbox is datashell's,
-not flamingo's: how it is built and started is documented in
-[scripts/sandbox/README.md](scripts/sandbox/README.md).
+You also need **Docker** installed and running. That is a requirement of where the node
+runs today rather than of the node itself; [DESIGN.md](DESIGN.md) says why, and what
+replaces it.
 
-## CLI Reference
+## Run it
 
 ```text
-fw up                    # Start the node in the background
-fw up --attach           # Start it in this terminal and stream its output
-fw up --run <file.json>  # Start it and run a network scenario
-fw up --shutdown         # Cleanly stop the nodes
+fw up                    # start the node in the background
+fw up --attach           # start it in this terminal and stream its output
+fw up --run <file.json>  # start it and run a network scenario
+fw up --shutdown         # stop it
 ```
 
-`fw` runs the node as a **datashell bot**, using the same api as the generic drive and bot
-CLI in [`datashell`](scripts/README.md), which this package depends on, so both see the same
-thing. The first `fw up` registers the code package `flamingo-node` (built by `lib/build.js`)
-and a bot named `flamingo`, whose own drive holds the wallet that becomes the node's identity.
-After that, `cli bot flamingo` reports its status, `cli bot flamingo --log` prints everything
-it has logged, and `cli bot flamingo --end` stops it exactly as `fw up --shutdown` does.
+`fw up` is the whole lifecycle. There is no separate `start`, `stop` or `down`.
 
-`cli` is datashell's own command, not one this package installs, so it is `npx cli` in a clone
-of this repo.
+A background `fw up` returns as soon as the node is running, and what the node prints goes
+to its log rather than to your terminal. `fw up --attach` watches it start here instead.
 
-A background `fw up` returns as soon as the bot is running, and its output goes to the
-bot's log core: `cli bot flamingo --log` prints it, while the node runs or after, and
-`fw up --attach` watches it start in this terminal instead.
+The log is kept per node and outlives the run, but reading it needs datashell's own `cli`,
+which this package does not install — `npx cli bot flamingo --log` in a clone of this
+repository. [DESIGN.md](DESIGN.md) says why the node runs as a datashell bot.
 
-## Programmatic API
+## Talking to the node
 
-`fw` only reads the command line; the work is in `lib/flamingo.js`, which anything can
-call instead of shelling out to the CLI:
+Everything a wallet does — balances, addresses, invoices, payments, channels, peers — goes
+over the WebSocket API, on the port `WS_PORT` sets, `8080` by default. There is no HTTP
+API and no command for it.
+
+A request and the reply to it:
 
 ```js
-const { up, down, running } = require('flamingo-node')
+ws.send(JSON.stringify({
+  head: ['wallet', 'backend', 1],   // who asks, who is asked, a message id
+  type: 'lightning-getinfo',        // what to do
+  data: {}                          // what it needs
+}))
 
-await up()                               // same as `fw up`
-await up({ attach: true })               // ... and stream its output
-await up({ scenario: 'two-nodes.json' }) // ... and run a scenario
-await running()                          // is the node up?
-await down()                             // same as `fw up --shutdown`
+// { head: ['backend', 'wallet', 1], type: 'lightning-getinfo:response', data: { ... } }
 ```
 
-It throws on failure rather than exiting, so the caller decides what to do.
+The reply carries the id it was sent with and `:response` on the type, so a caller can
+match it to the request it belongs to.
 
-## Runtimes
+What you can ask for:
 
-The host side runs on Bare; only the entrypoint that runs inside the sandbox stays on Node.
+| | |
+| --- | --- |
+| state | `lightning-getinfo`, `lightning-listfunds`, `get_btc_balance`, `get_ln_balance`, `sync_wallet_balances` |
+| addresses | `bitcoin-newaddress`, `lightning_newaddress`, `validate_btc_address` |
+| paying | `create_ln_invoice`, `decode_ln_invoice`, `pay_ln_invoice`, `keysend_ln_payment`, `get_ln_payment_status`, `send_btc_onchain` |
+| channels and peers | `list_peers`, `connect_node`, `fund_channel`, `open_channel_flamingo`, `get_liquidity_report`, `request_inbound_liquidity` |
+| history | `list_btc_transactions`, `list_ln_invoices`, `get_transaction_history`, `get_transaction_summary` |
+| contacts | `contact_add`, `contact_list`, `contact_delete` |
+| identity and recovery | `initialize_node_wallet`, `delete_node_wallet`, `get_node_details`, `export_scb`, `recover_funds` |
+| regtest only | `admin_reset_world`, `admin_fund_node`, `btc_mine_blocks_regtest`, `simulate_incoming_payment` |
 
-| File | Runtime | Job |
-| --- | --- | --- |
-| `lib/cli.js` | Node | What `fw` points at. Forwards the command line to Bare using the runtime npm installed, so a `#!/usr/bin/env node` shebang is enough on machines without `bare` on PATH. |
-| `lib/fw.js` | Bare | The host CLI: reads the arguments and calls the api. |
-| `lib/flamingo.js`, `lib/scenario-runner.js` | both | The api. The sandbox under it is datashell's, in [scripts/sandbox](scripts/sandbox/README.md). An `imports` map points `child_process`, `fs`, `os`, `path` and `process` at the `bare-*` packages when Bare resolves them; Node ignores the map because its keys don't start with `#`. |
-| `lib/env.js` | both | Where `env.json` is and how it is read. Its own module so the entrypoint inside the sandbox can have the settings without requiring the api, which would pull the sandbox in with it. |
-| `lib/start.js` | Node | What runs inside the sandbox, which `fw start` runs directly. bitcoind, lightningd and the WebSocket daemon need Node, so nothing on this path goes through Bare. |
+The full list is the `actions` table in
+[lib/node_modules/websocketd/daemon.js](lib/node_modules/websocketd/daemon.js), which is
+the one place a type is registered.
 
-`bare-subprocess` has no `exec`, `execFile` or `execSync`, so the shared code uses `spawn`
-and `spawnSync` only, and it reads output as bytes because `spawnSync` ignores `encoding`
-under Bare.
+## Configuration
 
-## Environment Configuration
-
-The CLI uses an `env.json` file in your current directory. If it doesn't exist, it will be automatically created from `env.default.json` when you run `fw up`.
-
-### Default `env.json` structure:
+`fw up` reads `env.json` from the directory you run it in, and writes one from
+`env.default.json` if there is none:
 
 ```json
 {
@@ -93,30 +93,13 @@ The CLI uses an `env.json` file in your current directory. If it doesn't exist, 
 }
 ```
 
-## WebSocket API
+The paths are inside the node, so the defaults work as they are. `WS_PORT` is the one most
+worth changing.
 
-All node-specific interactions (getinfo, funds, newaddress, etc.) are only available via the WebSocket API on port `8080`.
+## Network scenarios
 
-### Admin Commands
-
-For testing scenarios, several `admin_` commands are available:
-- `admin_reset_world`: Closes all channels and clears state for a fresh start.
-- `admin_fund_node`: Funds a specific node with BTC from the miner reward (regtest).
-- `initialize_node_wallet`: Provisions a fresh wallet/identity for a node.
-
-
-## How is `fw start/stop` different from `fw up/down`?
-
-`start/stop` used to manage bitcoind and lightningd as local processes, while `up/down`
-managed the sandbox they run in. They are one command now, `fw up`: where the node runs is
-an internal detail, so there is nothing to choose between.
-
-
-## Network Scenarios
-
-Use `fw run <scenario.json>` to initialize a Lightning Network topology from a JSON file.
-
-### Scenario JSON Format
+`fw up --run <file.json>` brings the node up and then builds a Lightning topology on
+regtest from the file: the nodes to fund and the channels to open between them.
 
 ```json
 {
@@ -142,7 +125,8 @@ Use `fw run <scenario.json>` to initialize a Lightning Network topology from a J
 }
 ```
 
-### Example: Simple 2-Node
+`fund` is in BTC and `capacity` in satoshis. A channel is one direction, so a pair that can
+pay each other both ways is two entries. Two nodes and one channel is a valid file:
 
 ```json
 {
@@ -164,48 +148,25 @@ Use `fw run <scenario.json>` to initialize a Lightning Network topology from a J
 }
 ```
 
-## Running Flamingo as a bot
+## From JavaScript
 
-The drive and bot CLI in [`datashell`](scripts/README.md) is generic. `lib/drive` is
-Flamingo's code package for it: a generator and an entry. `lib/build.js` assembles the
-code drive, so build it, then create a bot from its generator:
+`fw` only reads the command line. The work is in the module, so anything can call it
+instead of shelling out:
 
-```sh
-cli pkg +flamingo-node ./lib/build.js
-cli bot +demo "flamingo-node/generate?ask=no"
-cli bot demo --run
+```js
+const { up, down, running } = require('flamingo-node')
+
+await up()                               // same as `fw up`
+await up({ attach: true })               // ... and stream its output
+await up({ scenario: 'two-nodes.json' }) // ... and run a scenario
+await running()                          // is the node up?
+await down()                             // same as `fw up --shutdown`
 ```
 
-`lib/build.js` writes `lib/drive`'s two files plus the installed `flamingo-docker`
-dependency, read from `node_modules` at the commit `package.json` pins, so the drive
-carries what the node needs without this repository keeping copies of it. Nothing reads
-those files from the drive yet: the bot asks `fw up`, and `fw` loads them from its own
-`node_modules`.
+It throws on failure rather than exiting, so the caller decides what to do about it.
 
-The generator writes `wallet.json`: a fresh 12-word BIP39 mnemonic, made with
-`bip39-mnemonic`. Each generated bot drive gets its own, so separate bots have
-separate identities. The CLI then adds `bot.json`, pointing at this package's
-pinned `main.js`.
+## Related repositories
 
-On `cli bot <name> --run` the entry reads `wallet.json` and stops with an error if
-the bot drive has none. It then starts the node with `fw up` and, once the backend
-accepts connections, sends the `initialize_node_wallet` WebSocket API one `recover`
-request with the stored mnemonic (using `bare-ws`), so node4 always comes up with
-this bot's identity. Restarting the same bot restores its previous state. On stop it
-runs `fw up --shutdown`. How the node runs is flamingo-node's business; the bot only
-asks for it to start and stop.
-
-The node itself isn't in the drive yet: the bot runs `fw` from this repository, so
-run bots from the repository folder.
-
-The node runs from the installed repository and its data folder, so per-bot on-chain /
-channel *data* is not preserved between runs yet, only the node identity. The drive's code
-is pinned, and so is what the sandbox installs: Bitcoin Core by the published checksum of
-its release and Core Lightning by commit. Peer replication remains deferred.
-
-## Related Repositories
-
-- [flamingo-node](https://github.com/playproject-io/flamingo-node) — Backend: bitcoind, lightningd, WebSocket bridge
+- [flamingo-wallet](https://github.com/playproject-io/flamingo-wallet) — main entry point & orchestration
+- [flamingo-ui](https://github.com/playproject-io/flamingo-ui) — reusable UI component library
 - [flamingo-docker](https://github.com/playproject-io/flamingo-docker) — Docker environment for the stack
-- [flamingo-wallet](https://github.com/playproject-io/flamingo-wallet) — Main entry point & orchestration
-- [flamingo-ui](https://github.com/playproject-io/flamingo-ui) — Reusable UI component library
