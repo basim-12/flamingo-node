@@ -1,8 +1,7 @@
 # What works, and what is planned
 
 Every `cli` command that works today, with the shortest useful example of each, and the
-ones we have agreed on but not built yet. Updated at the end of each worklog; this is
-worklog 5.
+ones we have agreed on but not built yet. Updated at the end of each worklog.
 
 Longer explanations live beside the code: [packages](packs/README.md),
 [bots](tasks/README.md), [caps](cap/README.md), [the sandbox](sandbox/README.md). The
@@ -115,55 +114,4 @@ Anywhere a command takes a `<specifier>`:
 
 The table in [the readme](README.md#specifiers) says what each one resolves to.
 
-## Planned
 
-Agreed with you, not built. The numbers are the task numbers from the notes, so each line
-can be traced back to where we settled it.
-
-### Worklog 6, the sandbox
-
-- one standard image instead of any image, and `void-linux/void-glibc` as the candidate,
-  carrying `git`, `bare` and a bubblewrap-wrapped subprocess (15, 16)
-- `install.js` becomes `setup.js`, and a drive without one is fine (14)
-- `setup.js` and the entry run outside the sandbox under Bare, with `bare-module` refusing
-  to resolve anything but our api (13)
-- Docker installed and run *inside* a sandbox, tested (17)
-
-### Worklog 7, caps
-
-- caps declared in `package.json`, separately for setup and for running, with config saying
-  what may never be prompted for (18)
-- a module that never declared its caps gets them declared by whatever depends on it (19)
-- the whole dependency tree collected before anything runs, and asked for once (20)
-- a module asks for the sandbox permissions its non-JS code needs (21)
-- `cli cap --expand` becomes a tree that says which module needs what, rather than today's
-  two flat groups (23)
-- cap names mapping one to one onto `msb`, written down (24)
-- grants move out of `grants.json` into a drive datashell manages, one per app, linked from
-  the audit core (25)
-- internal modules like `lightningd` become real packages, so they can declare (22)
-
-### Worklog 8, state and docs
-
-- the audit core is the operations log and a hyperbee is the state, with tx and rx per bot
-  and per app (27)
-- the JS api is the same api as the CLI, so what works on the command line works in the web
-  (28)
-- this readme splits into `docs/BOTS.md`, `CAPS.md`, `PKGS.md`, `INFO.md` and `DEMO.md`,
-  with the readme left as a short overview (29)
-- `<details>` for the api in each readme, and a `DESIGN.md` for how it is implemented (30)
-- every `msb` option we could build a cap on, written down (31)
-- deterministic installs, and whether guix or nix earns its place (33)
-
-## Not decided yet
-
-- **dropping Docker entirely.** My answer is yes: prove Docker runs inside a sandbox, move
-  installing it into the node's own setup, then datashell stops knowing about Docker at all
-- **caps for modules that do not declare their own.** Ours can be declared for, npm ones
-  still need an answer
-- **how an app says where it writes.** Anything under `/out` comes back and anything else
-  is lost. My thinking is the drive declares its data paths and we mount the output drive
-  there, so `/out` stops being special
-- **whether `setup.js` and an entry are both needed**
-- **our own runtime**, and the `require.addon()` rule that waits on it
-- **bubblewrap** as a lighter second option after `msb`
