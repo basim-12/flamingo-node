@@ -13,8 +13,12 @@ function capture (cmd, args, { timeout = 0 } = {}) {
     child.once('error', reject)
     child.once('exit', code => {
       if (timer) clearTimeout(timer)
-      if (code === 0) resolve(out.trim())
-      else reject(new Error(err.trim() || `${cmd} exited with code ${code}`))
+      if (code === 0) return resolve(out.trim())
+      // The code is carried, not only printed, because a caller may be a drive's own
+      // script asking whether the command it ran inside the sandbox worked.
+      const failed = new Error(err.trim() || `${cmd} exited with code ${code}`)
+      failed.code = code
+      reject(failed)
     })
   })
 }

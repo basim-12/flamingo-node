@@ -28,7 +28,7 @@ Nothing user facing. There is no `cli sandbox`, a bot is started with `cli bot <
 before and the sandbox underneath is invisible. Datashell uses it through this api:
 
 ```js
-const run = require('./sandbox/run')
+const { run, open } = require('./sandbox/run')
 
 const sandbox = await run({ drive, mount, output, caps, command, audit })
 
@@ -47,9 +47,10 @@ sandbox.stop()          // stop it, and what it wrote so far is still collected
 | `image` | what to run it in. A stock `debian:bookworm-slim` unless something needs more |
 | `audit` | the hypercore that identifies the run, and holds what it was started with |
 
-A failed run still looks like a successful one. `done` gives what the code printed, and `msb`
-reports a stopped sandbox without its exit code, so there is nowhere to read one from. The
-error message type on the output core is the answer to that, once the cores exist.
+A one-shot `run` cannot tell a failure from a success. `done` gives what the code printed, and
+`msb` reports a stopped sandbox without its exit code, so there is nowhere to read one from; a
+build works around it with a marker file. Through `open` below the question does not come up,
+because `msb exec` does return the real exit code.
 
 A build passes an `image` of its own, because an install script is JavaScript and the default
 base has no runtime to run it with. It is the stock upstream Node image pinned by digest, not
@@ -77,10 +78,41 @@ one prepared image under Docker, started and stopped.
 | `logs()` | follow its output in this terminal until Ctrl+C |
 | `down()` | stop bitcoind and the lightning nodes cleanly, then take the node down, waiting for each so nothing is killed mid write |
 
-So there are two sandboxes for now, because the prepared image still has a user.
-`run` is the one that takes any drive, but it does not run a *bot* yet: `cli bot <name> --run`
-still runs drive code in the daemon. Moving that across is what makes the sandbox invisible,
-and it is the next step.
+So there are two sandboxes for now, because the prepared image still has a user. `run` is the
+one that takes any drive, but neither of them runs a *bot* yet: `cli bot <name> --run` still
+loads a bot's code in the daemon with the modules it was granted. What replaces that is `open`.
+
+### A sandbox a drive's own script drives
+
+`run` decides everything up front: one command, and the sandbox is gone once it finishes.
+`open` boots the same sandbox with nothing running in it and hands back a handle.
+
+```js
+const box = await open({ drive, mount, output, caps, audit })
+
+box.handle    // what a drive's own script gets
+box.stop()    // ours, not the script's
+```
+
+| | |
+| --- | --- |
+| `run(command, args)` | run it inside, and return what it printed. Throws with the code it exited with |
+| `start(command, args)` | the same, left running, returning the job's id |
+| `put(file, data)` | write bytes to a path inside |
+| `get(file)` | read a path inside, as a buffer |
+| `logs()` | everything the sandbox has printed, the left-running jobs included |
+
+The handle is the whole of what a drive's script can do. The sandbox it names was built from
+what was granted before the script ran, so the script chooses what runs inside and never what
+the sandbox may reach, and it has no way to ask for a second one. Stopping is ours: a script
+does not end the thing it is running in.
+
+This is what makes a JS runtime inside unnecessary. The script runs out here under Bare where
+it resolves nothing, and anything it wants done inside is an `msb` command. `bare` is not in
+the base image and does not need to be.
+
+Every call is an entry on the audit core, so the core reads as the sandbox opening, each
+command and file in order, and the end.
 
 ## Messages in and out
 
@@ -224,9 +256,10 @@ takes over, and until then saying so is better than writing around it.
   mounted in, and whatever it installs done inside the sandbox rather than baked by us.
 - **Drives in, drives out,** over the passthrough mount described above, so nothing is copied
   by hand and a run's result has an address.
-- **Custom code inside, bot logic outside.** Today a bot runs in the daemon and only the node
-  it starts is sandboxed. What moves inside is the drive's own code; the generic machinery
-  that manages it stays where it is.
+- **Bot code outside, commands inside.** Today a bot runs in the daemon with the modules it
+  was granted. What replaces that is the handle above: the drive's own code runs out here
+  under Bare resolving nothing else, so it has no power of its own, and everything it wants
+  done becomes a command in the sandbox.
 - **Docker inside the sandbox** for a drive that needs a base we do not offer: install
   `docker.io` in the microVM and run containers there, which is a Docker daemon of its own and
   not a hole in the host's. Eventually through something like `require('bare-docker')`.

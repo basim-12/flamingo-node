@@ -19,7 +19,94 @@ const IMAGE = 'debian:bookworm-slim'
 // and an end are both entries, so the core reads as when it started, when it stopped, and
 // what it was given in between. The sandbox is named after the core, so a run can be found
 // again from it.
-async function run ({ drive, mount = [], output, caps = {}, command, image = IMAGE, audit }) {
+async function run (opts) {
+  const box = await provision(opts)
+  const { command } = opts
+  await box.entry('run', { caps: opts.caps || {}, command, image: opts.image || IMAGE })
+  await capture(MSB, ['run', '-d', '--no-tty', ...box.flags, '--', ...command])
+
+  return {
+    id: box.id,
+    done: wait(),
+    stop: () => box.stop()
+  }
+
+  // Settles when the code inside finishes, whether it stopped on its own or stop was
+  // called. What it printed is the result, and what it wrote is in the output drive by
+  // then. The sandbox and its folder are removed even if collecting that fails.
+  async function wait () {
+    await capture(MSB, ['wait', box.name])
+    try {
+      const printed = await capture(MSB, ['logs', box.name])
+      await box.collect()
+      return printed
+    } finally {
+      await box.done()
+    }
+  }
+}
+
+// The same sandbox, booted with nothing running in it, and the handle a drive's own script
+// drives it with. The script runs out here under Bare where it can resolve nothing, so the
+// handle is the only thing it can do anything through, and the sandbox it names was already
+// built from what was granted: the script chooses what to run inside, never what the
+// sandbox is allowed to reach.
+async function open (opts) {
+  const box = await provision(opts)
+  await box.entry('open', { caps: opts.caps || {}, image: opts.image || IMAGE })
+  await capture(MSB, ['create', ...box.flags])
+
+  return {
+    id: box.id,
+    stop,
+    handle: {
+      // What the command printed. It throws with the code the command exited with, so a
+      // script can tell a failure from an empty result.
+      async run (command, args = []) {
+        await box.entry('exec', { command, args })
+        return capture(MSB, ['exec', '--no-tty', box.name, '--', command, ...args])
+      },
+      // Left running, so the script can get on with something else and stop later.
+      async start (command, args = []) {
+        await box.entry('start', { command, args })
+        return capture(MSB, ['exec', '-d', '--no-tty', box.name, '--', command, ...args])
+      },
+      async put (file, data) {
+        await box.entry('put', { file, bytes: data.length })
+        const temp = path.join(box.work, 'put')
+        await fsp.writeFile(temp, data)
+        try {
+          await capture(MSB, ['copy', '-q', temp, `${box.name}:${file}`])
+        } finally { await fsp.rm(temp, { force: true }) }
+      },
+      async get (file) {
+        await box.entry('get', { file })
+        const temp = path.join(box.work, 'get')
+        await capture(MSB, ['copy', '-q', `${box.name}:${file}`, temp])
+        try {
+          return await fsp.readFile(temp)
+        } finally { await fsp.rm(temp, { force: true }) }
+      },
+      logs () {
+        return capture(MSB, ['logs', box.name])
+      }
+    }
+  }
+
+  async function stop () {
+    try {
+      await box.stop()
+      await box.collect()
+    } finally {
+      await box.done()
+    }
+  }
+}
+
+// Everything both of them need: msb present, the audit core open, a work folder with the
+// drive and its mounts exported into it, and the create arguments that follow from the
+// caps. Nothing here starts anything.
+async function provision ({ drive, mount = [], output, caps = {}, image = IMAGE, audit }) {
   await need_msb()
   await audit.ready()
   // Cut short because the mount paths are built from it, and still unique to this core.
@@ -27,7 +114,6 @@ async function run ({ drive, mount = [], output, caps = {}, command, image = IMA
   // Where this run's entries start, so its end can be paired with its beginning.
   const began = audit.length
   let stopped = false
-  await entry('run', { caps, command, image })
 
   // Resolved, because a mount path that goes through a symlink is refused, and on macOS
   // the temporary folder is behind one.
@@ -48,44 +134,37 @@ async function run ({ drive, mount = [], output, caps = {}, command, image = IMA
     mounted.push('--mount-dir', `${folder}:/mnt/${each.id}:ro`)
   }
 
-  await capture(MSB, ['run', '-d', '--no-tty', '--name', name,
-    ...network(caps),
-    '--mount-dir', `${app}:/app:ro`,
-    ...mounted,
-    ...(output ? ['--mount-dir', `${out}:/out`] : []),
-    image, '--', ...command
-  ])
-
   return {
+    name,
+    work,
     id: audit.id,
-    done: wait(),
-    stop: () => {
+    flags: ['--name', name,
+      ...network(caps),
+      '--mount-dir', `${app}:/app:ro`,
+      ...mounted,
+      ...(output ? ['--mount-dir', `${out}:/out`] : []),
+      image
+    ],
+    entry (type, data) {
+      return audit.append(Buffer.from(JSON.stringify({
+        head: ['datashell', name, began],
+        refs: { drive: drive.id, mount: mount.map(each => each.id), output: output ? output.id : null },
+        type,
+        data,
+        meta: { time: Date.now() }
+      })))
+    },
+    // Only ever called because something asked for it: nothing else stops a sandbox
+    // early, so the end entry records it as asked for.
+    stop () {
       stopped = true
       return capture(MSB, ['stop', name])
-    }
-  }
-
-  function entry (type, data) {
-    return audit.append(Buffer.from(JSON.stringify({
-      head: ['datashell', name, began],
-      refs: { drive: drive.id, mount: mount.map(each => each.id), output: output ? output.id : null },
-      type,
-      data,
-      meta: { time: Date.now() }
-    })))
-  }
-
-  // Settles when the code inside finishes, whether it stopped on its own or stop was
-  // called. What it printed is the result, and what it wrote is in the output drive by
-  // then. The sandbox and its folder are removed even if collecting that fails.
-  async function wait () {
-    await capture(MSB, ['wait', name])
-    try {
-      const printed = await capture(MSB, ['logs', name])
-      if (output) await import_folder(output, out)
-      return printed
-    } finally {
-      await entry('end', { stopped })
+    },
+    collect () {
+      return output ? import_folder(output, out) : Promise.resolve()
+    },
+    async done () {
+      await this.entry('end', { stopped })
       await capture(MSB, ['rm', name])
       await fsp.rm(work, { recursive: true, force: true })
     }
@@ -110,4 +189,4 @@ async function need_msb () {
   }
 }
 
-module.exports = run
+module.exports = { run, open }
