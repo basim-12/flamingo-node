@@ -139,7 +139,7 @@ async function packs (root = STORAGE) {
   // Load the function a generator or entry file exports, reading the code straight
   // from its drive at the pinned revision (or from its local folder); nothing is
   // copied to disk. `code` is the drive's pinned reference.
-  async function load (from) {
+  async function load (from, sandbox) {
     let drive
     let file
     let code = null
@@ -157,7 +157,7 @@ async function packs (root = STORAGE) {
     try {
       if (!(await drive.entry(file)) && await drive.entry(file + '.js')) file += '.js'
       if (!(await drive.entry(file))) throw new Error(`Generator/entry file not found in the drive: ${from.file}`)
-      const fn = await run_from(drive, file, Boolean(from.local))
+      const fn = await run_from(drive, file, Boolean(from.local), sandbox)
       if (typeof fn !== 'function') throw new Error('Entry must export a function')
       return { fn, code }
     } finally { await close() }
@@ -225,8 +225,8 @@ async function packs (root = STORAGE) {
 
   // Evaluate a module graph read straight from drive with bare module's Loader.
   // Every file goes through the drive. What it may require comes in as builtins.
-  async function run_from (drive, file, own) {
-    const provided = await modules_for(drive, own)
+  async function run_from (drive, file, own, sandbox) {
+    const provided = await modules_for(drive, own, sandbox)
     const protocol = new Module.Protocol({
       async exists (url) {
         return (await drive.entry(url.pathname)) !== null
@@ -235,7 +235,7 @@ async function packs (root = STORAGE) {
         const data = await drive.get(url.pathname)
         if (!url.pathname.endsWith('.js')) return data
         const source = data.toString()
-        validate_cjs(source, url, provided, caps.allows)
+        validate_cjs(source, url, provided, caps.allows, Boolean(sandbox))
         return source
       }
     })
@@ -243,16 +243,26 @@ async function packs (root = STORAGE) {
     return loader.import(new URL('drive://' + file))
   }
 
-  // What code in a drive may require: the builtins, plus whatever its own package.json
-  // declares and has been granted. Declaring is not granting, so anything ungranted is
-  // left out and the require that wants it says so.
+  // What code in a drive may require.
   //
-  // `own` is a path the user pointed at rather than a drive. It has no manifest to declare
-  // in, and they chose the file themselves, so there the grants are the whole answer.
-  async function modules_for (drive, own) {
+  // An entry, which is what gets a sandbox, may require the builtins and `sandbox` and nothing
+  // else at all. It is written by anyone, it runs out here rather than inside the sandbox, and
+  // it runs on every start with nobody watching, so it is given no way to reach this machine:
+  // the builtins only compute and hand over no power, and `sandbox` is a handle on a microVM
+  // built from what was granted before the entry ran, so the entry decides what happens in
+  // there and never what it may reach. Declaring a dependency does not change any of that.
+  //
+  // A generator keeps the older rule, declared and granted, because it runs once, when someone
+  // types the specifier that names it, and filling a drive is all it is for. That it can still
+  // be granted something with real IO is a gap rather than a decision; what closes it is grants
+  // becoming per app instead of one list that answers for everything.
+  //
+  // `own` is a path the user pointed at rather than a drive. They chose that file themselves,
+  // so it is not arbitrary code and the grants are the whole answer, as they were before.
+  async function modules_for (drive, own, sandbox) {
     const provided = {}
-    const manifest = own ? null : await drive.get('/package.json')
-    const declared = own ? caps.list() : Object.keys(manifest ? JSON.parse(manifest).dependencies || {} : {})
+    const manifest = own || sandbox ? null : await drive.get('/package.json')
+    const declared = sandbox ? [] : own ? caps.list() : Object.keys(manifest ? JSON.parse(manifest).dependencies || {} : {})
     for (const name of [...capabilities.BUILTINS, ...declared]) {
       if (provided[name] || !caps.allows(name)) continue
       try {
@@ -262,6 +272,7 @@ async function packs (root = STORAGE) {
         throw new Error(`This drive needs ${name}, which is not installed here`)
       }
     }
+    if (sandbox) provided.sandbox = sandbox
     return provided
   }
 }
@@ -269,7 +280,7 @@ async function packs (root = STORAGE) {
 // A dynamic import() would load code around the Loader, so drive code may not use it.
 // A require of something it does not have is caught here too: the Loader would otherwise
 // go looking for it in the drive and fail without ever naming it.
-function validate_cjs (source, url, provided, allows) {
+function validate_cjs (source, url, provided, allows, strict) {
   const ast = acorn.parse(source, { ecmaVersion: 'latest', sourceType: 'script' })
   walk.simple(ast, {
     ImportExpression () {
@@ -279,8 +290,11 @@ function validate_cjs (source, url, provided, allows) {
       if (node.callee.name !== 'require') return
       const [arg] = node.arguments
       if (arg?.type !== 'Literal' || /^\.{0,2}\//.test(arg.value) || arg.value in provided) return
-      // Undeclared reads as missing, because from the code's side it is: the drive never
-      // asked for it, so nothing was ever put there.
+      // An entry is told the rule rather than that it was not granted, because granting
+      // would not help: nothing but the builtins and the handle reaches it either way.
+      if (strict) throw new Error(`An entry may require the builtins and sandbox, so ${arg.value} is not there`)
+      // Otherwise undeclared reads as missing, because from the code's side it is: the drive
+      // never asked for it, so nothing was ever put there.
       throw new Error(allows(arg.value)
         ? `Cannot find module '${arg.value}'`
         : `This drive requires ${arg.value}, which it was not granted`)

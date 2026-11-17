@@ -152,8 +152,8 @@ one prepared image under Docker, started and stopped.
 | `down()` | stop bitcoind and the lightning nodes cleanly, then take the node down, waiting for each so nothing is killed mid write |
 
 So there are two sandboxes for now, because the prepared image still has a user. `run` is the
-one that takes any drive, but neither of them runs a *bot* yet: `cli bot <name> --run` still
-loads a bot's code in the daemon with the modules it was granted. What replaces that is `open`.
+one that takes any drive, and `open` below is what a bot's entry gets: `cli bot <name> --run`
+hands the entry a handle and nothing else, so the entry can only act through the sandbox.
 
 ### A sandbox a drive's own script drives
 
@@ -186,6 +186,16 @@ the base image and does not need to be.
 
 Every call is an entry on the audit core, so the core reads as the sandbox opening, each
 command and file in order, and the end.
+
+The sandbox is not booted until the handle is used, so a bot that never touches it never starts
+one and does not need msb installed at all. That is the same reasoning as the output drive: a
+run that has no use for something should not pay for it.
+
+flamingo's own entry has not been ported to this yet. It still requires `bare-fs` and spawns
+flamingo's CLI on the host, which the rule above refuses, so its bot does not run. The node
+image does build inside a sandbox, so the port is possible; what it needs first is the build
+moved into `setup.js` with the image landing in the output drive, because a sandbox is fresh
+every run and rebuilding a 951MB image on each start is not an option.
 
 ## Messages in and out
 

@@ -114,6 +114,19 @@ async function open (opts) {
   }
 }
 
+// The same handle, but the sandbox behind it is not booted until something is asked of it, so
+// a bot that never touches it never pays for one and never needs msb installed at all. The
+// promise is kept rather than the box, so two calls at once share the one sandbox.
+function lazy (opts) {
+  let booting = null
+  const ready = () => (booting = booting || open(opts)).then(box => box.handle)
+  const call = name => (...args) => ready().then(handle => handle[name](...args))
+  return {
+    handle: { run: call('run'), start: call('start'), put: call('put'), get: call('get'), logs: call('logs') },
+    stop: () => booting ? booting.then(box => box.stop()) : Promise.resolve()
+  }
+}
+
 // Everything both of them need: msb present, the audit core open, a work folder with the
 // drive and its mounts exported into it, and the create arguments that follow from the
 // caps. Nothing here starts anything.
@@ -200,4 +213,4 @@ async function need_msb () {
   }
 }
 
-module.exports = { run, open }
+module.exports = { run, open, lazy }

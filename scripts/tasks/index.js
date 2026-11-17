@@ -4,7 +4,7 @@ const path = require('bare-path')
 const process = require('bare-process')
 const crypto = require('bare-crypto')
 const { reference, drive_link } = require('../packs')
-const { run: sandbox } = require('../sandbox/run')
+const { run: sandbox, lazy } = require('../sandbox/run')
 
 module.exports = tasks
 
@@ -144,10 +144,17 @@ async function tasks (pkgs) {
     if (busy(registry[name])) throw new Error('This bot is already running')
     const opened = await pkgs.open_drive(registry[name], false)
     let entry
+    // The handle has to exist before the entry is loaded, because `require('sandbox')` is how
+    // the entry reaches it, so it is made now and the sandbox behind it is booted only if the
+    // entry asks for something. It is built from what the bot was granted, and the entry
+    // cannot change that.
+    let box
     try {
       const link = await config(opened.drive)
-      entry = await pkgs.load({ link, ...reference(link) })
+      box = lazy({ drive: opened.drive, audit: await pkgs.core('audit', name) })
+      entry = await pkgs.load({ link, ...reference(link) }, box.handle)
     } catch (err) {
+      if (box) await box.stop()
       await opened.close()
       throw err
     }
@@ -192,6 +199,7 @@ async function tasks (pkgs) {
           await updates
           await refresh(opened.drive)
         } finally {
+          await box.stop()
           await appends
           await core.close()
           await fsp.rm(pidfile, { force: true })

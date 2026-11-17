@@ -156,9 +156,20 @@ run them; nothing starts them automatically.
 
 ## Capabilities
 
-What a drive's code may require. A builtin computes and touches nothing, so it is never asked
-for. Anything else is refused until it is granted, and declaring it in the drive's
-`package.json` is not the same as being granted it. The model is [cap](cap/README.md).
+What a drive's code may require, and it depends on which code.
+
+A bot's **entry** may require the builtins and `sandbox`, and nothing else at all. It is written
+by anyone, it runs out here rather than inside the sandbox, and it runs unattended on every
+start, so it is given no way to reach this machine: the builtins compute and touch nothing, and
+`sandbox` is a handle on a microVM built from what was granted before the entry ran. Granting it
+something makes no difference, and it is told the rule rather than that it was not granted.
+
+A **generator** keeps the older rule: the builtins, plus what its `package.json` declares and
+has been granted, where declaring is not the same as being granted. It runs once, when someone
+types the specifier that names it. That it can still be granted something with real IO is a gap,
+and what closes it is grants becoming per app rather than one list for everything.
+
+The model is [cap](cap/README.md), and the handle is in [sandbox](sandbox/README.md).
 
 | Command | Behavior |
 | --- | --- |
