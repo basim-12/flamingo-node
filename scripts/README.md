@@ -8,6 +8,10 @@ as `cli`:
 npx cli pkg
 ```
 
+[STATUS.md](STATUS.md) is the short version of this file: every command that works, one
+example each, and what is agreed but not built yet. It is updated at the end of each
+worklog.
+
 `cli.js` forwards the command line to Bare using the runtime npm installed, so `bare` does
 not have to be on PATH.
 
