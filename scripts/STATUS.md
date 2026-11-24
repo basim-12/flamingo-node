@@ -42,11 +42,12 @@ produces in a drive of its own, so two bots made from one package are two separa
 | --- | --- |
 | `cli bot` | Every bot, as the same block `cli bot <name>` prints for one |
 | `cli bot +<name> <specifier>` | Make a bot. A generator fills its drive first |
-| `cli bot <name>`, or `--see` after it | Name, drive, package, output drive, and running or stopped |
+| `cli bot <name>`, or `--see` after it | Name, drive, package, output drive, how many lines its log holds, and running or stopped |
 | `cli bot <name> --build` | Run the drive's `setup.js` in a sandbox, into the output drive |
 | `cli bot <name> --run` | Start it in the background |
 | `cli bot <name> --run --attach` | Watch it here, starting it first if it is not running. Ctrl+C stops watching, not the bot |
 | `cli bot <name> --log` | Everything it has logged, across every run |
+| `cli bot <name> --log=<count>` | Only its newest `<count>` lines |
 | `cli bot <name> --end` | Stop it. Nothing else stops a bot |
 | `cli bot -<name>` | Delete it, its drive, and its log and audit cores |
 
@@ -56,6 +57,7 @@ cli bot +mybot demo/generate.js
 # Drive: dat://3.0.sjb8gpjrd9y9dy6dtaea958kprotr931kog9tyrfmh6pr4n6ddko.7190dbf3087…
 # Package: mybot
 # Output: dat://0.0.nws8km41ujgrdep6d4m8h3ypcfq4bqjhr9ipkydwkusnb3c5g4no.bb30a42c1e6…
+# Log: 0 lines
 # Status: stopped
 ```
 

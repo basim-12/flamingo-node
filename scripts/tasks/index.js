@@ -35,9 +35,14 @@ async function tasks (pkgs) {
     const link = registry[name]
     if (!link) throw new Error(`Unknown bot: ${name}`)
     const out = await output_drive(name)
+    const core = await pkgs.core('log', name)
+    await core.ready()
     try {
-      return { name, drive: link, package: pkgs.find(link) || null, output: await drive_link(out), running: busy(link) }
-    } finally { await out.close() }
+      return { name, drive: link, package: pkgs.find(link) || null, output: await drive_link(out), logged: core.length, running: busy(link) }
+    } finally {
+      await core.close()
+      await out.close()
+    }
   }
 
   function output_drive (name) {
@@ -134,9 +139,13 @@ async function tasks (pkgs) {
     await core.ready()
     let appends = Promise.resolve()
     const append = line => { appends = appends.then(() => core.append(line)); return appends }
-    // a zero length block cannot be read back under Bare (random-access-file 4.1.2 calls
-    // process.nextTick, and Bare has no global process), so blank lines are not stored
-    const record = line => { if (line) append(line); print(line) }
+    // one block per line, so the log's length counts lines. A zero length block cannot be read
+    // back under Bare (random-access-file 4.1.2 calls process.nextTick, and Bare has no global
+    // process), so blank lines are not stored
+    const record = text => {
+      for (const line of String(text).split('\n')) if (line) append(line)
+      print(text)
+    }
 
     let stop
     const stopped = new Promise(resolve => { stop = resolve })
@@ -196,13 +205,14 @@ async function tasks (pkgs) {
     if (runner(name)) throw new Error('The running bot did not stop in time')
   }
 
-  async function log (name) {
+  async function log (name, count) {
     if (!registry[name]) throw new Error(`Unknown bot: ${name}`)
     const core = await pkgs.core('log', name)
     await core.ready()
     try {
       const lines = []
-      for (let i = 0; i < core.length; i++) lines.push((await core.get(i)).toString())
+      // count arrives as null over the daemon's socket when it was not given
+      for (let i = count ? Math.max(0, core.length - count) : 0; i < core.length; i++) lines.push((await core.get(i)).toString())
       return lines.join('\n')
     } finally { await core.close() }
   }
@@ -227,8 +237,8 @@ async function tasks (pkgs) {
 }
 
 // the lines `cli bot <name>` prints, from what see() returns
-function describe ({ name, drive, package: pack, output, running }) {
-  return `Name: ${name}\nDrive: ${drive}\nPackage: ${pack || '(unnamed)'}\nOutput: ${output}\nStatus: ${running ? 'running' : 'stopped'}`
+function describe ({ name, drive, package: pack, output, logged, running }) {
+  return `Name: ${name}\nDrive: ${drive}\nPackage: ${pack || '(unnamed)'}\nOutput: ${output}\nLog: ${logged} ${logged === 1 ? 'line' : 'lines'}\nStatus: ${running ? 'running' : 'stopped'}`
 }
 
 function write_bot_json (drive, code) {

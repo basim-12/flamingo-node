@@ -12,7 +12,7 @@ const usage = `Usage:
   cli pkg <name> <dirpath> | cli pkg <name> --export=<dirpath>
   cli pkg -<name>
   cli bot +<name> <specifier>
-  cli bot <name> [--see|--run|--run --attach|--end|--log|--build] | cli bot
+  cli bot <name> [--see|--run|--run --attach|--end|--log|--log=<count>|--build] | cli bot
   cli bot -<name>
   cli cap [--expand] | cli cap <name>
   cli cap +<name> | cli cap -<name>
@@ -51,6 +51,7 @@ function parse (args) {
   if (kind === 'bot' && option === '--run') return { kind, name, action: attach ? 'attach' : 'run' }
   if (kind === 'bot' && option === '--end') return { kind, name, action: 'end' }
   if (kind === 'bot' && option === '--log') return { kind, name, action: 'log' }
+  if (kind === 'bot' && /^--log=[1-9]\d*$/.test(option)) return { kind, name, action: 'log', count: Number(option.slice(6)) }
   if (kind === 'bot' && option === '--build') return { kind, name, action: 'build' }
   if (kind === 'pkg') {
     if (option.startsWith('--import=') && option.slice(9)) return { kind, name, action: 'create', source: option.slice(9) }
@@ -61,7 +62,7 @@ function parse (args) {
 }
 
 // Call the runtime function the command asks for, and return what to print.
-async function command (ds, { kind, action, name, source }, cwd) {
+async function command (ds, { kind, action, name, source, count }, cwd) {
   if (kind === 'cap') {
     if (action === 'list') return await listing(await ds.cap.list(), ds.cap.info) || 'Nothing granted.'
     if (action === 'expand') return ds.cap.expand()
@@ -93,7 +94,7 @@ async function command (ds, { kind, action, name, source }, cwd) {
     const attached = ds.bot.attach(name, line => console.log(line))
     return { done: attached.done.then(describe), detached: `Detached. ${name} is still running; stop it with: cli bot ${name} --end` }
   }
-  if (action === 'log') return await ds.bot.log(name) || 'This bot has logged nothing.'
+  if (action === 'log') return await ds.bot.log(name, count) || 'This bot has logged nothing.'
   if (action === 'build') return ds.bot.build(name)
   if (action === 'end') await ds.bot.end(name)
   if (action === 'delete') {

@@ -272,6 +272,16 @@ test('bot <name> --log is what the bot logged, run after run', async t => {
   t.ok(second.out.startsWith(first.out), 'the first run is still there, unchanged')
 })
 
+// `cli bot <name>` says how many lines the log holds, and --log=<count> prints only the
+// newest ones, so a long log can be read from its end.
+test('bot <name> shows the log length; --log=<count> prints the newest lines', async t => {
+  const length = Number((await cli('bot', 'alice')).out.match(/^Log: (\d+) lines$/m)[1])
+  t.ok(length > 2, 'the length of the log')
+  t.is((await cli('bot', 'alice', '--log=1')).out, 'sample stopping', 'only the newest line')
+  t.is((await cli('bot', 'alice', '--log=' + length)).out, (await cli('bot', 'alice', '--log')).out, 'all of them')
+  t.is((await cli('bot', 'alice', '--log=0')).code, 1, 'a count is at least 1')
+})
+
 // One daemon per storage root owns the drives and runs the bots, started by the first
 // command that needs it and gone once nothing is left to do. It is what makes the two
 // above work: commands no longer take the storage lock for themselves.

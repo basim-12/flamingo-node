@@ -147,12 +147,13 @@ automatically.
 | Command | Action and behavior |
 | --- | --- |
 | `cli bot +<name> <specifier>` | Register a stopped bot. `<specifier>` must name a drive — package name, drive id or `dat://` reference — because a bot pins its code to a drive; local paths are refused. A drive on its own is used as the configuration drive directly (it must already contain a valid `bot.json`). `<drive>/generate` runs that drive's generator into a fresh bot drive, the CLI writes its `bot.json`, and it is registered as a package under `<name>` too. Reject an existing bot name, a package-name conflict, or a configuration drive already registered to another bot (checked by drive id). |
-| `cli bot <name>` / `cli bot <name> --see` | Show its drive reference, package name if available, the address of the drive its builds land in, and running/stopped status. The output drive is listed before anything has been built into it, because its address does not change. |
+| `cli bot <name>` / `cli bot <name> --see` | Show its drive reference, package name if available, the address of the drive its builds land in, how many lines its log holds, and running/stopped status. The output drive is listed before anything has been built into it, because its address does not change. |
 | `cli bot` | List registered bots. |
 | `cli bot <name> --run` | Verify and launch the file `bot.json`'s `run` names in the background, and return once it runs. Reuse existing bot data and identity. A bot is a singleton: refuse if it, or another bot on the same drive, is already running. |
 | `cli bot <name> --run --attach` | Start the bot if it is not running, and show what it logs in this terminal until it stops. Ctrl+C stops watching and leaves the bot running. |
 | `cli bot <name> --end` | Stop the bot cleanly and preserve its data. The only command that stops a bot. |
-| `cli bot <name> --log` | Print everything the bot has logged, across every run. Refused while it runs, because it holds the store. |
+| `cli bot <name> --log` | Print everything the bot has logged, across every run, oldest first. Works while the bot runs. |
+| `cli bot <name> --log=<count>` | Print only the newest `<count>` lines. `cli bot <name>` says how many there are. |
 | `cli bot <name> --build` | Prepare what the bot needs without running it. A drive says how by holding a `setup.js`, which is optional: without one there is nothing to prepare, and the bot runs against the base image as it comes. The script runs in a sandbox and what it writes becomes a drive of its own, whose reference the bot's drive keeps, so building again has nothing left to do. Refused while the bot runs. |
 | `cli bot -<name>` | Refuse while running. Otherwise remove the bot and purge its associated bot package/data, preserving the code package and unrelated data. |
 
