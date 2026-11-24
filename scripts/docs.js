@@ -398,9 +398,9 @@ test('cap module: grant, see, revoke', async t => {
 })
 
 // The bot commands are a thin layer over the tasks module (tasks/README.md), built
-// on packs. A task runs in-process: start it, it saves data to its drive, stop it,
-// and both the task and its package now point at the revision with that data.
-test('tasks module: start a task, let it save, stop it', async t => {
+// on packs. A bot runs in-process: start it, it saves data to its drive, stop it,
+// and both the bot and its package now point at the revision with that data.
+test('tasks module: start a bot, let it save, stop it', async t => {
   const pkgs = await packs(path.join(home, 'tasks-api'))
   const bots = await tasks(pkgs)
   await pkgs.create('code', sample, repo)

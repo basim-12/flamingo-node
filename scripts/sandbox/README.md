@@ -223,8 +223,8 @@ feed of messages and an addressable drive, and the paths in the first point into
 
 ## Identity, and resuming
 
-Every task has an **audit core**, one across all of its runs rather than one per run. A run
-and an end are both entries in it, so the core reads as when the task started, when it
+Every bot has an **audit core**, one across all of its runs rather than one per run. A run
+and an end are both entries in it, so the core reads as when the bot started, when it
 stopped, and what it was given in between. The sandbox's id is derived from the core, so the
 core is both the record of what a run was allowed and the handle to find it again.
 

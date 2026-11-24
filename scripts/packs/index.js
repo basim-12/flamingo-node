@@ -48,7 +48,6 @@ async function packs (root = STORAGE) {
     if (corestore !== null) await corestore.close()
   }
 
-  // A plain hypercore in its own namespace, for what a task keeps outside its drive.
   async function core (namespace, name) {
     return (await drives()).namespace(namespace).get({ name })
   }

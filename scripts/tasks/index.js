@@ -8,16 +8,12 @@ const { run: sandbox, lazy } = require('../sandbox/run')
 
 module.exports = tasks
 
-// Things that run from a pack's drive and can be stopped and started again, such as
-// a bot. Built on a packs() instance; the drive holds bot.json (what to run) and
-// whatever the task saves.
 async function tasks (pkgs) {
   const run_dir = path.join(pkgs.root, 'run')
   const running = new Map()
   let saving = Promise.resolve()
   const api = { close, list, get, info, busy, create, build, start, end, read_log, remove }
 
-  // Reading bots.json needs no store, so this works while a running bot holds one.
   const registry = Object.assign(Object.create(null), await read_json(path.join(pkgs.root, 'bots.json')))
   return api
 
@@ -38,8 +34,6 @@ async function tasks (pkgs) {
     return registry[name]
   }
 
-  // The output drive is listed whether or not anything has been built into it yet, because
-  // its address is the same either way and that is what a later run hands on.
   async function info (name) {
     const link = registry[name]
     if (!link) throw new Error(`Unknown bot: ${name}`)
@@ -49,12 +43,11 @@ async function tasks (pkgs) {
     } finally { await out.close() }
   }
 
-  // Where a task's build lands. The same name always reopens the same drive.
   function output_drive (name) {
     return pkgs.disk('build', name)
   }
 
-  // A task runs if this process runs it, or a live process claims it in its pidfile.
+  // running here, or a live process claims it in its pidfile
   function runner (name) {
     if (running.has(name)) return { pid: process.pid }
     try {
@@ -64,16 +57,11 @@ async function tasks (pkgs) {
     return null
   }
 
-  // Whether any task on the drive behind `link` is running.
   function busy (link) {
     const { id } = reference(link)
     return list().some(name => reference(registry[name]).id === id && runner(name))
   }
 
-  // Register a task from a <specifier>. A generator in a drive (<drive>/generate)
-  // fills a fresh drive and bot.json is written for it. Otherwise the drive must
-  // already hold bot.json, and not belong to another task: sharing one would mean
-  // two bots with one identity.
   async function create (name, spec, cwd) {
     if (registry[name]) throw new Error(`Bot already exists: ${name}`)
     const from = await pkgs.source(spec, cwd)
@@ -96,13 +84,6 @@ async function tasks (pkgs) {
     return link
   }
 
-  // Prepare what the task needs without running it. A drive says how by holding a setup.js,
-  // which is optional: without one there is nothing to prepare and the entry runs against the
-  // base image as it comes. It is setup rather than install because a drive may configure what
-  // it is given as well as install into it. The script runs in the one sandbox image, reaching
-  // nothing of the user's, and whatever it writes becomes a drive of its own. The
-  // bot's drive keeps that drive's pinned reference, so the hash says what was built and a
-  // second build has nothing left to do.
   async function build (name) {
     if (!registry[name]) throw new Error(`Unknown bot: ${name}`)
     if (busy(registry[name])) throw new Error('This bot is running')
@@ -120,8 +101,7 @@ async function tasks (pkgs) {
           const run = await sandbox({
             drive: code.view,
             output: out,
-            // The marker is how a failure is told from a success: microsandbox reports a
-            // stopped sandbox without the exit code of what ran in it.
+            // `msb wait` loses the exit code, so the marker says whether setup.js passed
             command: ['sh', '-c', 'node /app/setup.js && touch /out/.built'],
             audit: await pkgs.core('audit', name)
           })
@@ -136,18 +116,12 @@ async function tasks (pkgs) {
     } finally { await opened.close() }
   }
 
-  // Run a task's entry in this process until it is stopped. Returns { done, stop }.
-  // `print` shows a line to whoever started it; every line is also appended to the
-  // task's log core, which outlives the run.
   async function start (name, print) {
     if (!registry[name]) throw new Error(`Unknown bot: ${name}`)
     if (busy(registry[name])) throw new Error('This bot is already running')
     const opened = await pkgs.open_drive(registry[name], false)
     let entry
-    // The handle has to exist before the entry is loaded, because `require('sandbox')` is how
-    // the entry reaches it, so it is made now and the sandbox behind it is booted only if the
-    // entry asks for something. It is built from what the bot was granted, and the entry
-    // cannot change that.
+    // the entry reaches the handle through require('sandbox'), so it is made first
     let box
     try {
       const link = await config(opened.drive)
@@ -163,9 +137,8 @@ async function tasks (pkgs) {
     await core.ready()
     let appends = Promise.resolve()
     const append = line => { appends = appends.then(() => core.append(line)); return appends }
-    // Blank lines are shown but not stored: a zero length block cannot be read back
-    // under Bare, because random-access-file's _read uses process.nextTick and Bare has
-    // no global process (random-access-file 4.1.2 maps fs and path for Bare, not process).
+    // a zero length block cannot be read back under Bare (random-access-file 4.1.2 calls
+    // process.nextTick, and Bare has no global process), so blank lines are not stored
     const log = line => { if (line) append(line); print(line) }
 
     let stop
@@ -173,7 +146,6 @@ async function tasks (pkgs) {
     const run = { stop, done: null }
     running.set(name, run)
 
-    // Keep the registries on the latest revision as the task saves data.
     let updates = Promise.resolve()
     const updated = () => { updates = updates.then(() => refresh(opened.drive)) }
     opened.drive.core.on('append', updated)
@@ -212,8 +184,6 @@ async function tasks (pkgs) {
     return { done: run.done, stop }
   }
 
-  // Stop a running task: directly if it runs in this process, otherwise by
-  // signalling the process that runs it and waiting for it to exit.
   async function end (name) {
     if (!registry[name]) throw new Error(`Unknown bot: ${name}`)
     const local = running.get(name)
@@ -229,8 +199,6 @@ async function tasks (pkgs) {
     if (runner(name)) throw new Error('The running bot did not stop in time')
   }
 
-  // Everything a task has logged, oldest first, across every run. Reading needs the
-  // store, so it only works once the task has stopped.
   async function read_log (name) {
     if (!registry[name]) throw new Error(`Unknown bot: ${name}`)
     const core = await pkgs.core('log', name)
@@ -242,16 +210,13 @@ async function tasks (pkgs) {
     } finally { await core.close() }
   }
 
-  // Delete a drive with every package and task registered on it. Refused while a
-  // task on that drive is running.
   async function remove (link) {
     if (busy(link)) throw new Error('Cannot delete a running bot or its package')
     await pkgs.remove(link)
     const { id } = reference(link)
     for (const name of list()) {
       if (reference(registry[name]).id !== id) continue
-      // What the task kept outside its drive is named after the task, so leaving it behind
-      // would hand it to the next task registered under the same name.
+      // named after the bot, so a later bot with the same name would inherit them
       for (const kind of ['log', 'audit']) await (await pkgs.core(kind, name)).purge()
       delete registry[name]
     }
@@ -265,8 +230,6 @@ async function tasks (pkgs) {
   }
 }
 
-// The CLI, not the generator, records what a bot runs: the generator's drive at its
-// pinned revision, and that drive's index.js.
 function write_bot_json (drive, code) {
   return drive.put('/bot.json', Buffer.from(JSON.stringify({ run: code + '/index.js' }, null, 2)))
 }
@@ -297,7 +260,7 @@ async function read_json (file) {
   }
 }
 
-// Write to a temporary file and rename it, so a crash never leaves half a registry.
+// a crash never leaves half a registry
 async function write_json (file, data) {
   const temp = file + '.' + crypto.randomBytes(16).toString('hex')
   try {

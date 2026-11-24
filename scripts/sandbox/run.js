@@ -25,11 +25,6 @@ const IMAGE = 'node:26-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257
 //
 // Without an output drive there is no writable mount at all, because a run that produces
 // nothing has no use for one.
-//
-// The audit core is the run's identity, and one core serves a task across its runs: a run
-// and an end are both entries, so the core reads as when it started, when it stopped, and
-// what it was given in between. The sandbox is named after the core, so a run can be found
-// again from it.
 async function run (opts) {
   const box = await provision(opts)
   const { command } = opts

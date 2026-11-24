@@ -5,10 +5,6 @@ const tasks = require('./tasks')
 module.exports = runtime
 runtime.foreground = foreground
 
-// Everything the command line can do, as functions over packs and tasks, in this process.
-// The daemon runs on top of this (daemon.js) and serves the same api to commands, which is
-// how `cli` and `fw` reach it; starting a task in the background is therefore its job, not
-// something this does.
 async function runtime (root) {
   const pkgs = await packs(root)
   const bots = await tasks(pkgs)
@@ -50,8 +46,6 @@ async function runtime (root) {
   }
 }
 
-// Hold a running task in this terminal until it finishes. Ctrl+C sends SIGINT and
-// `--end` sends SIGTERM; either one stops it.
 async function foreground ({ done, stop }) {
   process.on('SIGINT', () => stop())
   process.on('SIGTERM', () => stop())
