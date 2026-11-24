@@ -20,7 +20,7 @@ replaces it.
 
 ```text
 fw up                    # start the node in the background
-fw up --attach           # start it in this terminal and stream its output
+fw up --attach           # watch it in this terminal, starting it first if needed
 fw up --run <file.json>  # start it and run a network scenario
 fw up --shutdown         # stop it
 ```
@@ -28,7 +28,8 @@ fw up --shutdown         # stop it
 `fw up` is the whole lifecycle. There is no separate `start`, `stop` or `down`.
 
 A background `fw up` returns as soon as the node is running, and what the node prints goes
-to its log rather than to your terminal. `fw up --attach` watches it start here instead.
+to its log rather than to your terminal. `fw up --attach` shows that output here as it
+happens. Ctrl+C stops watching and leaves the node running; `fw up --shutdown` stops it.
 
 The log is kept per node and outlives the run, but reading it needs datashell's own `cli`,
 which this package does not install — `npx cli bot flamingo --log` in a clone of this

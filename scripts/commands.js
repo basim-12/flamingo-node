@@ -91,7 +91,7 @@ async function command (ds, { kind, action, name, source }, cwd) {
   if (action === 'run') return describe(await ds.bot.run(name)) + `\nRunning in the background. Its log: cli bot ${name} --log`
   if (action === 'attach') {
     const attached = ds.bot.attach(name, line => console.log(line))
-    return { done: attached.done.then(describe), stop: attached.stop }
+    return { done: attached.done.then(describe), detached: `Detached. ${name} is still running; stop it with: cli bot ${name} --end` }
   }
   if (action === 'log') return await ds.bot.log(name) || 'This bot has logged nothing.'
   if (action === 'build') return ds.bot.build(name)

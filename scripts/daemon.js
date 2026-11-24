@@ -3,6 +3,7 @@ const path = require('bare-path')
 const process = require('bare-process')
 const { createServer } = require('bare-pipe')
 const runtime = require('./runtime')
+const { describe } = require('./tasks')
 const { open, send, receive } = require('./socket')
 
 // One daemon per storage root. It owns the drive storage and runs the bots, so a command
@@ -34,7 +35,8 @@ async function main () {
     socket.on('end', () => {
       socket.end()
       clients.delete(socket)
-      for (const active of running.values()) if (active.socket === socket) active.stop()
+      // a command that goes away, Ctrl+C included, stops watching and leaves the bot running
+      for (const watchers of running.values()) watchers.delete(socket)
       finished()
     })
     receive(socket, message => serve(socket, message))
@@ -47,29 +49,36 @@ async function main () {
   // bot here and keep it, and attach also streams what it logs back to the command.
   async function serve (socket, { id, kind, action, args = [] }) {
     try {
-      if (action === 'run' || action === 'attach') return await run(socket, id, action === 'attach' && socket, args[0])
+      if (action === 'attach' && running.has(args[0])) return await watch(socket, id, args[0])
+      if (action === 'run' || action === 'attach') return await run(socket, id, action === 'attach', args[0])
       send(socket, { id, result: await ds[kind][action](...args) })
     } catch (err) {
       send(socket, { id, error: err.message })
     }
   }
 
-  // `attached` is the command's socket when it wants the output, false when it only asked
-  // for the bot to be started. Either way the bot runs here, in this process.
-  async function run (socket, id, attached, name) {
-    const active = await ds.bot.run(name, line => attached && send(attached, { id, line }))
-    running.set(name, { stop: active.stop, socket: attached })
+  // Every command attached to the bot is a watcher: it gets each line the bot logs, and its
+  // result once the bot ends. A command that only ran it gets the bot's state straight away.
+  async function run (socket, id, attach, name) {
+    const watchers = new Map(attach ? [[socket, id]] : [])
+    const active = await ds.bot.run(name, line => { for (const [watcher, at] of watchers) send(watcher, { id: at, line }) })
+    running.set(name, watchers)
     active.done.then(
-      result => reply({ id, result }),
-      err => reply({ id, error: err.message })
+      result => reply({ result }),
+      err => reply({ error: err.message })
     )
-    if (!attached) send(socket, { id, result: await ds.bot.see(name) })
+    if (!attach) send(socket, { id, result: await ds.bot.see(name) })
 
     function reply (message) {
       running.delete(name)
-      if (attached) send(attached, message)
+      for (const [watcher, at] of watchers) send(watcher, { id: at, ...message })
       finished()
     }
+  }
+
+  async function watch (socket, id, name) {
+    running.get(name).set(socket, id)
+    send(socket, { id, line: describe(await ds.bot.see(name)) })
   }
 
   async function finished () {

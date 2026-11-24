@@ -55,7 +55,7 @@ function cli_in (cwd, ...args) {
   return launch(cwd, args).exited
 }
 
-// Start the CLI and hand back both the process and a promise of its output.
+// Start the CLI and hand back the process, a promise of its output, and what it printed so far.
 function launch (cwd, args) {
   const child = spawn(process.execPath, [path.join(repo, 'scripts', 'commands.js'), ...args], {
     cwd,
@@ -67,7 +67,7 @@ function launch (cwd, args) {
   child.stdout.on('data', data => { out += data })
   child.stderr.on('data', data => { err += data })
   const exited = new Promise(resolve => child.on('exit', code => resolve({ code, out: out.trim(), err: err.trim() })))
-  return { child, exited }
+  return { child, exited, printed: () => out }
 }
 
 // Wait up to ten seconds for `check` to come true.
@@ -287,14 +287,25 @@ test('the daemon owns the storage, so commands do not have to', async t => {
   t.ok(await until(() => !fs.existsSync(pidfile)), 'and it exits once nothing is left to do')
 })
 
-// --run --attach runs the bot in this terminal instead, until Ctrl+C (SIGINT).
-test('bot <name> --run --attach runs it in the foreground; Ctrl+C stops it', async t => {
-  const attached = launch(repo, ['bot', 'alice', '--run', '--attach'])
+// --run --attach starts the bot and shows what it logs in this terminal. Ctrl+C (SIGINT)
+// only stops watching: the bot keeps running, and attaching again watches the same run.
+// Only --end stops it, and every attached terminal then sees it stop.
+test('bot <name> --run --attach watches it; Ctrl+C detaches, --end stops it', async t => {
+  const first = launch(repo, ['bot', 'alice', '--run', '--attach'])
   t.ok(await until(async () => (await cli('bot', 'alice')).out.includes('Status: running')), 'running')
-  attached.child.kill('SIGINT')
-  const result = await attached.exited
-  t.is(result.code, 0)
-  t.ok(result.out.includes('sample stopping'), 'shut down cleanly')
+  first.child.kill('SIGINT')
+  const detached = await first.exited
+  t.is(detached.code, 0)
+  t.ok(detached.out.endsWith('Detached. alice is still running; stop it with: cli bot alice --end'), 'says it let go')
+  t.ok((await cli('bot', 'alice')).out.includes('Status: running'), 'and the bot is still running')
+
+  const second = launch(repo, ['bot', 'alice', '--run', '--attach'])
+  t.ok(await until(() => second.printed().includes('Status: running')), 'attached to the same run')
+  t.ok((await cli('bot', 'alice', '--end')).out.includes('Status: stopped'), '--end stops it')
+  const ended = await second.exited
+  t.is(ended.code, 0)
+  t.ok(ended.out.includes('sample stopping'), 'the attached terminal saw it shut down')
+  t.ok(ended.out.endsWith('Status: stopped'), 'and ends with its state')
 })
 
 // What a running bot saves is kept: the drive moves to a new revision, and the bot

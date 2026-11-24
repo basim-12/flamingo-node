@@ -47,9 +47,7 @@ async function remote (root = packs.STORAGE) {
     cap: namespace('cap', ['list', 'info', 'expand', 'grant', 'revoke']),
     bot: {
       ...namespace('bot', ['list', 'see', 'create', 'build', 'run', 'end', 'log', 'drop']),
-      // The bot runs in the daemon and prints here. Stopping is the same `end` any other
-      // command would send, so this one still receives the bot's last lines and its result.
-      attach: (name, print) => ({ done: call('bot', 'attach', [name], print), stop: () => call('bot', 'end', [name]) })
+      attach: (name, print) => ({ done: call('bot', 'attach', [name], print) })
     }
   }
 }

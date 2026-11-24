@@ -37,8 +37,8 @@ A bot is a name registered against one drive, the bot's drive. It holds:
 ```js
 module.exports = async function (drive, { stopped, log }) {
   // drive: the bot's own writable drive
-  // stopped: resolves when the bot is asked to stop, by --end or Ctrl+C
-  // log(line): prints the line in the terminal if the bot was started with --attach,
+  // stopped: resolves when the bot is asked to stop, by cli bot <name> --end
+  // log(line): prints the line in every terminal attached with --run --attach,
   //   and stores it in the bot's log, which `cli bot <name> --log` prints
   await stopped
 }

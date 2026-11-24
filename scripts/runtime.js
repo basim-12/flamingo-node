@@ -42,12 +42,14 @@ async function runtime (root) {
   }
 }
 
-async function foreground ({ done, stop }) {
-  process.on('SIGINT', () => stop())
-  process.on('SIGTERM', () => stop())
+// Ctrl+C stops watching the bot, not the bot, and settles with `detached`
+async function foreground ({ done, detached }) {
   const keep_alive = setInterval(() => {}, 1 << 30)
   try {
-    return await done
+    return await new Promise((resolve, reject) => {
+      process.once('SIGINT', () => resolve(detached))
+      done.then(resolve, reject)
+    })
   } finally {
     clearInterval(keep_alive)
   }

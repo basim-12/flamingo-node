@@ -35,9 +35,8 @@ at its own address, not a second label on the first one.
 
 ### Bots
 
-A bot is a package that runs, and can be stopped and started again. Its own drive is where
-it keeps what it produces, which is what makes two bots from one package two separate
-things.
+A bot runs code from a package, and can be stopped and started again. It keeps what it
+produces in a drive of its own, so two bots made from one package are two separate things.
 
 | Command | What it does |
 | --- | --- |
@@ -46,9 +45,9 @@ things.
 | `cli bot <name>`, or `--see` after it | Name, drive, package, output drive, and running or stopped |
 | `cli bot <name> --build` | Run the drive's `setup.js` in a sandbox, into the output drive |
 | `cli bot <name> --run` | Start it in the background |
-| `cli bot <name> --run --attach` | Start it here and stream its output until it stops |
+| `cli bot <name> --run --attach` | Watch it here, starting it first if it is not running. Ctrl+C stops watching, not the bot |
 | `cli bot <name> --log` | Everything it has logged, across every run |
-| `cli bot <name> --end` | Stop it |
+| `cli bot <name> --end` | Stop it. Nothing else stops a bot |
 | `cli bot -<name>` | Delete it, its drive, and its log and audit cores |
 
 ```sh
@@ -60,8 +59,8 @@ cli bot +mybot demo/generate.js
 # Status: stopped
 ```
 
-The output drive is listed from the start, at length `0` until something is built into it,
-because its address is the same either way and that is what a later run is handed.
+The output drive is listed from the start, at length `0` until `--build` writes into it.
+Its id stays the same after a build; only the length and the hash change.
 
 `setup.js` is optional. `--build` says `Nothing to build` for a drive without one, and a bot
 with no setup runs against the base image as it comes. A second build has nothing to do either,

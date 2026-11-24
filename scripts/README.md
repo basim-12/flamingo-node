@@ -124,12 +124,12 @@ exports an async function receiving the writable drive and a lifecycle context:
 module.exports = async function (drive, { stopped, log }) {
   log('Started')
   // Read configuration and save changes with drive.get()/drive.put().
-  await stopped // Resolved by --end or Ctrl+C; finish cleanup before returning.
+  await stopped // resolved by cli bot <name> --end; finish cleanup before returning
 }
 ```
 
-`drive` is the writable bot drive. `stopped` resolves on `--end` or Ctrl+C.
-`log(line)` shows a line to whoever started the bot and appends it to its log core. An
+`drive` is the writable bot drive. `stopped` resolves on `cli bot <name> --end`.
+`log(line)` prints the line in every terminal attached to the bot and appends it to its log core. An
 entry may instead return a cleanup
 function, which the CLI awaits after `stopped`.
 
@@ -138,9 +138,11 @@ running after the command and the terminal have gone, because it runs inside the
 (see below), not inside the command. Everything it logs is appended to a hypercore of its
 own, kept in the shared Corestore, which it reopens and adds to on every run; there is no
 log file. `cli bot <name> --log` prints it, oldest first, and works while the bot is still
-running. `cli bot <name> --run --attach` runs it in this terminal instead, until Ctrl+C,
-printing the same lines as it appends them; Ctrl+C stops the bot. Bots only start when you
-run them; nothing starts them automatically.
+running. `cli bot <name> --run --attach` also shows each line in this terminal as the bot
+logs it; if the bot is already running, it shows that run instead of starting a new one.
+Ctrl+C there stops watching, not the bot: the bot keeps running in the daemon, and only
+`cli bot <name> --end` stops it. Bots only start when you run them; nothing starts them
+automatically.
 
 | Command | Action and behavior |
 | --- | --- |
@@ -148,8 +150,8 @@ run them; nothing starts them automatically.
 | `cli bot <name>` / `cli bot <name> --see` | Show its drive reference, package name if available, the address of the drive its builds land in, and running/stopped status. The output drive is listed before anything has been built into it, because its address does not change. |
 | `cli bot` | List registered bots. |
 | `cli bot <name> --run` | Verify and launch the file `bot.json`'s `run` names in the background, and return once it runs. Reuse existing bot data and identity. A bot is a singleton: refuse if it, or another bot on the same drive, is already running. |
-| `cli bot <name> --run --attach` | The same, but in this terminal; Ctrl+C stops it. |
-| `cli bot <name> --end` | Stop the bot cleanly and preserve its data. |
+| `cli bot <name> --run --attach` | Start the bot if it is not running, and show what it logs in this terminal until it stops. Ctrl+C stops watching and leaves the bot running. |
+| `cli bot <name> --end` | Stop the bot cleanly and preserve its data. The only command that stops a bot. |
 | `cli bot <name> --log` | Print everything the bot has logged, across every run. Refused while it runs, because it holds the store. |
 | `cli bot <name> --build` | Prepare what the bot needs without running it. A drive says how by holding a `setup.js`, which is optional: without one there is nothing to prepare, and the bot runs against the base image as it comes. The script runs in a sandbox and what it writes becomes a drive of its own, whose reference the bot's drive keeps, so building again has nothing left to do. Refused while the bot runs. |
 | `cli bot -<name>` | Refuse while running. Otherwise remove the bot and purge its associated bot package/data, preserving the code package and unrelated data. |
@@ -224,7 +226,7 @@ Three files, one api:
 | --- | --- |
 | [`runtime.js`](runtime.js) | The api over `packs` and `tasks`, in one process. What the daemon runs. |
 | [`daemon.js`](daemon.js) | Owns the storage, runs the bots, serves that api on the socket. |
-| [`remote.js`](remote.js) | The same api, over the daemon. What `cli` and `fw` use. One difference: `bot.run(name)` starts the bot inside the daemon and returns `see(name)` as soon as it is running. To keep a bot in this terminal, `bot.attach(name, print)` takes the place of `run(name, print)`: it returns `{ done, stop }` and calls `print` with each line the bot logs. |
+| [`remote.js`](remote.js) | The same api, over the daemon. What `cli` and `fw` use. One difference: `bot.run(name)` starts the bot inside the daemon and returns `see(name)` as soon as it is running. To keep a bot in this terminal, `bot.attach(name, print)` takes the place of `run(name, print)`: it returns `{ done }` and calls `print` with each line the bot logs, attaching to the bot's current run if it is already running. |
 
 Because the bots run inside the daemon, they stop when it does. It stays up for as long as
 any of them is running.
