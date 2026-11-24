@@ -34,7 +34,7 @@ async function main () {
     socket.on('end', () => {
       socket.end()
       clients.delete(socket)
-      for (const [name, run] of running) if (run.socket === socket) run.stop()
+      for (const active of running.values()) if (active.socket === socket) active.stop()
       finished()
     })
     receive(socket, message => serve(socket, message))
@@ -47,7 +47,7 @@ async function main () {
   // bot here and keep it, and attach also streams what it logs back to the command.
   async function serve (socket, { id, kind, action, args = [] }) {
     try {
-      if (action === 'run' || action === 'attach') return await start(socket, id, action === 'attach' && socket, args[0])
+      if (action === 'run' || action === 'attach') return await run(socket, id, action === 'attach' && socket, args[0])
       send(socket, { id, result: await ds[kind][action](...args) })
     } catch (err) {
       send(socket, { id, error: err.message })
@@ -56,14 +56,14 @@ async function main () {
 
   // `attached` is the command's socket when it wants the output, false when it only asked
   // for the bot to be started. Either way the bot runs here, in this process.
-  async function start (socket, id, attached, name) {
-    const run = await ds.bot.attach(name, line => attached && send(attached, { id, line }))
-    running.set(name, { stop: run.stop, socket: attached })
-    run.done.then(
+  async function run (socket, id, attached, name) {
+    const active = await ds.bot.run(name, line => attached && send(attached, { id, line }))
+    running.set(name, { stop: active.stop, socket: attached })
+    active.done.then(
       result => reply({ id, result }),
       err => reply({ id, error: err.message })
     )
-    if (!attached) send(socket, { id, result: await ds.bot.info(name) })
+    if (!attached) send(socket, { id, result: await ds.bot.see(name) })
 
     function reply (message) {
       running.delete(name)

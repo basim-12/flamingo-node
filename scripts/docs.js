@@ -406,13 +406,14 @@ test('tasks module: start a bot, let it save, stop it', async t => {
   await pkgs.create('code', sample, repo)
   const created = await bots.create('hello', 'code/generate', repo)
 
-  await bots.start('hello', () => {})
-  t.ok((await bots.info('hello')).includes('Status: running'), 'running')
+  await bots.run('hello', () => {})
+  t.ok((await bots.see('hello')).running, 'running')
   await bots.end('hello')
-  t.ok((await bots.info('hello')).includes('Status: stopped'), 'stopped')
+  const seen = await bots.see('hello')
+  t.absent(seen.running, 'stopped')
 
-  t.not(bots.get('hello'), created, 'moved to a newer revision')
-  t.is(pkgs.get('hello'), bots.get('hello'), 'package moved with it')
+  t.not(seen.drive, created, 'moved to a newer revision')
+  t.is(pkgs.get('hello'), seen.drive, 'package moved with it')
   const folder = await pkgs.export_to('hello', path.join(home, 'tasks-api-export'), repo)
   t.is(fs.readFileSync(path.join(folder, 'data.txt'), 'utf8'), 'saved while running')
   await bots.close()
@@ -428,8 +429,8 @@ test('runtime module: the cli as plain functions', async t => {
   await ds.bot.create('hello', 'code/generate', repo)
   t.alike([ds.pkg.list(), ds.bot.list()], [['code', 'hello'], ['hello']], 'a code package, a bot, and the bot drive registered too')
 
-  const run = await ds.bot.attach('hello', () => {})
-  t.ok((await ds.bot.info('hello')).includes('Status: running'), 'running')
+  const run = await ds.bot.run('hello', () => {})
+  t.ok((await ds.bot.see('hello')).running, 'running')
   await ds.bot.end('hello')
   await run.done
   t.ok((await ds.bot.log('hello')).includes('sample stopping'), 'its log core has what it printed')

@@ -22,26 +22,19 @@ async function runtime (root) {
     cap: pkgs.caps,
     bot: {
       list: bots.list,
-      info: bots.info,
-      busy: name => bots.busy(bot_of(name)),
+      see: bots.see,
       create: bots.create,
       build: bots.build,
-      attach: bots.start,
+      run: bots.run,
       end: bots.end,
-      log: bots.read_log,
-      remove: name => bots.remove(bot_of(name))
+      log: bots.log,
+      remove: async name => bots.remove((await bots.see(name)).drive)
     }
   }
 
   function pkg_of (name) {
     const link = pkgs.get(name)
     if (!link) throw new Error(`Unknown package: ${name}`)
-    return link
-  }
-
-  function bot_of (name) {
-    const link = bots.get(name)
-    if (!link) throw new Error(`Unknown bot: ${name}`)
     return link
   }
 }

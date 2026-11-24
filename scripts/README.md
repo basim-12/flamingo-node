@@ -224,7 +224,7 @@ Three files, one api:
 | --- | --- |
 | [`runtime.js`](runtime.js) | The api over `packs` and `tasks`, in one process. What the daemon runs. |
 | [`daemon.js`](daemon.js) | Owns the storage, runs the bots, serves that api on the socket. |
-| [`remote.js`](remote.js) | The same api, over the daemon. What `cli` and `fw` use. |
+| [`remote.js`](remote.js) | The same api, over the daemon. What `cli` and `fw` use. One difference: `bot.run(name)` starts the bot inside the daemon and returns `see(name)` as soon as it is running. To keep a bot in this terminal, `bot.attach(name, print)` takes the place of `run(name, print)`: it returns `{ done, stop }` and calls `print` with each line the bot logs. |
 
 Because the bots run inside the daemon, they stop when it does. It stays up for as long as
 any of them is running.

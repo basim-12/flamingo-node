@@ -7,12 +7,13 @@ const { reference, drive_link } = require('../packs')
 const { run: sandbox, lazy } = require('../sandbox/run')
 
 module.exports = tasks
+tasks.describe = describe
 
 async function tasks (pkgs) {
   const run_dir = path.join(pkgs.root, 'run')
   const running = new Map()
   let saving = Promise.resolve()
-  const api = { close, list, get, info, busy, create, build, start, end, read_log, remove }
+  const api = { close, list, see, create, build, run, end, log, remove }
 
   const registry = Object.assign(Object.create(null), await read_json(path.join(pkgs.root, 'bots.json')))
   return api
@@ -30,16 +31,12 @@ async function tasks (pkgs) {
     return Object.keys(registry).sort()
   }
 
-  function get (name) {
-    return registry[name]
-  }
-
-  async function info (name) {
+  async function see (name) {
     const link = registry[name]
     if (!link) throw new Error(`Unknown bot: ${name}`)
     const out = await output_drive(name)
     try {
-      return `Name: ${name}\nDrive: ${link}\nPackage: ${pkgs.find(link) || '(unnamed)'}\nOutput: ${await drive_link(out)}\nStatus: ${busy(link) ? 'running' : 'stopped'}`
+      return { name, drive: link, package: pkgs.find(link) || null, output: await drive_link(out), running: busy(link) }
     } finally { await out.close() }
   }
 
@@ -98,14 +95,14 @@ async function tasks (pkgs) {
         const out = await output_drive(name)
         const said = (printed, line) => printed ? `${printed}\n${line}` : line
         try {
-          const run = await sandbox({
+          const setup = await sandbox({
             drive: code.view,
             output: out,
             // `msb wait` loses the exit code, so the marker says whether setup.js passed
             command: ['sh', '-c', 'node /app/setup.js && touch /out/.built'],
             audit: await pkgs.core('audit', name)
           })
-          const printed = await run.done
+          const printed = await setup.done
           if (!await out.entry('/.built')) throw new Error(said(printed, 'setup.js failed, so nothing was built'))
           await out.del('/.built')
           const link = await drive_link(out)
@@ -116,7 +113,7 @@ async function tasks (pkgs) {
     } finally { await opened.close() }
   }
 
-  async function start (name, print) {
+  async function run (name, print) {
     if (!registry[name]) throw new Error(`Unknown bot: ${name}`)
     if (busy(registry[name])) throw new Error('This bot is already running')
     const opened = await pkgs.open_drive(registry[name], false)
@@ -139,12 +136,12 @@ async function tasks (pkgs) {
     const append = line => { appends = appends.then(() => core.append(line)); return appends }
     // a zero length block cannot be read back under Bare (random-access-file 4.1.2 calls
     // process.nextTick, and Bare has no global process), so blank lines are not stored
-    const log = line => { if (line) append(line); print(line) }
+    const record = line => { if (line) append(line); print(line) }
 
     let stop
     const stopped = new Promise(resolve => { stop = resolve })
-    const run = { stop, done: null }
-    running.set(name, run)
+    const active = { stop, done: null }
+    running.set(name, active)
 
     let updates = Promise.resolve()
     const updated = () => { updates = updates.then(() => refresh(opened.drive)) }
@@ -153,11 +150,11 @@ async function tasks (pkgs) {
     const pidfile = path.join(run_dir, name + '.pid')
     await fsp.mkdir(run_dir, { recursive: true, mode: 0o700 })
     await fsp.writeFile(pidfile, JSON.stringify({ pid: process.pid, started: Date.now() }) + '\n', { mode: 0o600 })
-    log(await info(name))
+    record(describe(await see(name)))
 
-    run.done = (async () => {
+    active.done = (async () => {
       try {
-        const cleanup = await entry.fn(opened.drive, { stopped, log })
+        const cleanup = await entry.fn(opened.drive, { stopped, log: record })
         if (typeof cleanup === 'function') {
           await stopped
           await cleanup()
@@ -179,9 +176,9 @@ async function tasks (pkgs) {
           running.delete(name)
         }
       }
-      return await info(name)
+      return await see(name)
     })()
-    return { done: run.done, stop }
+    return { done: active.done, stop }
   }
 
   async function end (name) {
@@ -199,7 +196,7 @@ async function tasks (pkgs) {
     if (runner(name)) throw new Error('The running bot did not stop in time')
   }
 
-  async function read_log (name) {
+  async function log (name) {
     if (!registry[name]) throw new Error(`Unknown bot: ${name}`)
     const core = await pkgs.core('log', name)
     await core.ready()
@@ -228,6 +225,11 @@ async function tasks (pkgs) {
     for (const name of list()) if (reference(registry[name]).id === drive.id) registry[name] = link
     await save()
   }
+}
+
+// the lines `cli bot <name>` prints, from what see() returns
+function describe ({ name, drive, package: pack, output, running }) {
+  return `Name: ${name}\nDrive: ${drive}\nPackage: ${pack || '(unnamed)'}\nOutput: ${output}\nStatus: ${running ? 'running' : 'stopped'}`
 }
 
 function write_bot_json (drive, code) {
