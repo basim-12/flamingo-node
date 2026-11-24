@@ -266,17 +266,17 @@ async function tasks (pkgs) {
 }
 
 // The CLI, not the generator, records what a bot runs: the generator's drive at its
-// pinned revision, and that drive's main.js.
+// pinned revision, and that drive's index.js.
 function write_bot_json (drive, code) {
-  return drive.put('/bot.json', Buffer.from(JSON.stringify({ entry: code + '/main.js' }, null, 2)))
+  return drive.put('/bot.json', Buffer.from(JSON.stringify({ run: code + '/index.js' }, null, 2)))
 }
 
 async function config (drive) {
   const data = await drive.get('/bot.json')
   if (!data) throw new Error('Configuration drive must contain bot.json')
-  const { entry } = JSON.parse(data)
-  if (typeof entry !== 'string' || !reference(entry).file) throw new Error('bot.json.entry must be a pinned drive URL with an entry filepath')
-  return entry
+  const { run } = JSON.parse(data)
+  if (typeof run !== 'string' || !reference(run).file) throw new Error('bot.json.run must be a pinned drive URL with a filepath')
+  return run
 }
 
 function alive (pid) {

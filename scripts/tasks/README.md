@@ -23,7 +23,7 @@ await pkgs.close()
 
 A task is a name registered against one drive. That drive holds:
 
-- `bot.json`: what to run, as `{ "entry": "dat://<pinned code drive>/main.js" }`
+- `bot.json`: what to run, as `{ "run": "dat://<pinned code drive>/index.js" }`
 - whatever else the task saves while it runs
 
 The entry is a function the code drive exports:
@@ -45,7 +45,7 @@ Rules:
   data folder, so registering a second one is refused.
 - **One run at a time.** A task that is already running can't be started again,
   and neither can another task on the same drive.
-- **Code is pinned.** The entry reference names an exact revision of the code
+- **Code is pinned.** The `run` reference names an exact revision of the code
   drive, and its hash is checked before anything runs.
 
 ## Storage

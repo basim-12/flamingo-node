@@ -37,7 +37,7 @@ fs.writeFileSync(path.join(sample, 'generate.js'), [
   "  await drive.put('/config.json', Buffer.from(JSON.stringify(options)))",
   '}'
 ].join('\n') + '\n')
-fs.writeFileSync(path.join(sample, 'main.js'), [
+fs.writeFileSync(path.join(sample, 'index.js'), [
   'module.exports = async function (drive, { stopped, log }) {',
   "  await drive.put('/data.txt', Buffer.from('saved while running'))",
   "  log('sample started')",
@@ -219,12 +219,12 @@ test('bot +<name> <generator> creates a stopped bot', async t => {
 })
 
 // bot.json tells the CLI what to run. The CLI writes it itself, not the generator:
-// the pinned reference of the drive the generator came from, plus its main.js.
+// the pinned reference of the drive the generator came from, plus its index.js.
 // The code can't change under a bot without its reference changing.
 test('bot.json pins the code the bot runs', async t => {
   const folder = await export_pkg('alice')
   t.alike(fs.readdirSync(folder).sort(), ['bot.json', 'config.json'])
-  t.is(read_json(path.join(folder, 'bot.json')).entry, code_link + '/main.js')
+  t.is(read_json(path.join(folder, 'bot.json')).run, code_link + '/index.js')
 })
 
 // A configuration drive is just a drive with a bot.json in it, so it can also be
@@ -232,7 +232,7 @@ test('bot.json pins the code the bot runs', async t => {
 test('bot +<name> <config drive> uses an existing configuration drive', async t => {
   const folder = path.join(home, 'carol-config')
   fs.mkdirSync(folder)
-  fs.writeFileSync(path.join(folder, 'bot.json'), JSON.stringify({ entry: code_link + '/main.js' }))
+  fs.writeFileSync(path.join(folder, 'bot.json'), JSON.stringify({ run: code_link + '/index.js' }))
   t.is((await cli('pkg', '+carol-config', folder)).code, 0)
   const result = await cli('bot', '+carol', 'carol-config')
   t.is(result.code, 0, result.err)
@@ -301,7 +301,7 @@ test('bot <name> --run --attach runs it in the foreground; Ctrl+C stops it', asy
 // and its package both point at it.
 test('what a bot saves while running is kept', async t => {
   const folder = await export_pkg('alice')
-  t.is(read_json(path.join(folder, 'bot.json')).entry, code_link + '/main.js', 'still the same code')
+  t.is(read_json(path.join(folder, 'bot.json')).run, code_link + '/index.js', 'still the same code')
   t.is(fs.readFileSync(path.join(folder, 'data.txt'), 'utf8'), 'saved while running')
   t.is(drive_of(await cli('pkg', 'alice')), drive_of(await cli('bot', 'alice')), 'bot and package agree')
 })

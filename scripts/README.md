@@ -108,12 +108,12 @@ and generated data; each application chooses its own folder structure.
 
 `bot.json` contains the information the CLI needs to launch the application. When
 a bot is created from a generator, the CLI writes it: the pinned reference of the
-drive the generator came from, plus `/main.js`. So a code drive keeps its entry in
-`main.js`.
+drive the generator came from, plus `/index.js`. So a code drive keeps its entry in
+`index.js`.
 
 ```json
 {
-  "entry": "dat://<length>.<fork>.<id>.<hash>/main.js"
+  "run": "dat://<length>.<fork>.<id>.<hash>/index.js"
 }
 ```
 
@@ -147,7 +147,7 @@ run them; nothing starts them automatically.
 | `cli bot +<name> <specifier>` | Register a stopped bot. `<specifier>` must name a drive — package name, drive id or `dat://` reference — because a bot pins its code to a drive; local paths are refused. A drive on its own is used as the configuration drive directly (it must already contain a valid `bot.json`). `<drive>/generate` runs that drive's generator into a fresh bot drive, the CLI writes its `bot.json`, and it is registered as a package under `<name>` too. Reject an existing bot name, a package-name conflict, or a configuration drive already registered to another bot (checked by drive id). |
 | `cli bot <name>` / `cli bot <name> --see` | Show its drive reference, package name if available, the address of the drive its builds land in, and running/stopped status. The output drive is listed before anything has been built into it, because its address does not change. |
 | `cli bot` | List registered bots. |
-| `cli bot <name> --run` | Verify and launch the entry from bot.json in the background, and return once it runs. Reuse existing bot data and identity. A bot is a singleton: refuse if it, or another bot on the same drive, is already running. |
+| `cli bot <name> --run` | Verify and launch the file `bot.json`'s `run` names in the background, and return once it runs. Reuse existing bot data and identity. A bot is a singleton: refuse if it, or another bot on the same drive, is already running. |
 | `cli bot <name> --run --attach` | The same, but in this terminal; Ctrl+C stops it. |
 | `cli bot <name> --end` | Stop the bot cleanly and preserve its data. |
 | `cli bot <name> --log` | Print everything the bot has logged, across every run. Refused while it runs, because it holds the store. |

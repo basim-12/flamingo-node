@@ -96,7 +96,7 @@ test('the flamingo drive carries the code and the pinned docker dependency', asy
   t.is(created.code, 0, created.err)
   code_link = drive_of(created)
   const folder = await export_pkg('flamingo-node')
-  t.alike(fs.readdirSync(folder).sort(), ['flamingo-docker', 'generate.js', 'main.js', 'package.json'])
+  t.alike(fs.readdirSync(folder).sort(), ['flamingo-docker', 'generate.js', 'index.js', 'package.json'])
   t.alike(fs.readdirSync(path.join(folder, 'flamingo-docker')).sort(),
     fs.readdirSync(path.join(repo, 'node_modules', 'flamingo-docker')).sort(), 'as installed')
 })
@@ -121,7 +121,7 @@ test('each bot gets its own identity', async t => {
   const alice = await export_pkg('alice')
   const bob = await export_pkg('bob')
   t.alike(fs.readdirSync(alice).sort(), ['bot.json', 'wallet.json'])
-  t.is(read_json(path.join(alice, 'bot.json')).entry, code_link + '/main.js', 'pinned to this code')
+  t.is(read_json(path.join(alice, 'bot.json')).run, code_link + '/index.js', 'pinned to this code')
   t.not(read_json(path.join(alice, 'wallet.json')).mnemonic, read_json(path.join(bob, 'wallet.json')).mnemonic)
 })
 
@@ -138,7 +138,7 @@ test('each bot gets its own identity', async t => {
 test('a flamingo bot does not run until its entry is ported', async t => {
   const folder = path.join(home, 'empty-config')
   fs.mkdirSync(folder)
-  fs.writeFileSync(path.join(folder, 'bot.json'), JSON.stringify({ entry: code_link + '/main.js' }))
+  fs.writeFileSync(path.join(folder, 'bot.json'), JSON.stringify({ run: code_link + '/index.js' }))
   t.is((await cli('pkg', '+empty-config', folder)).code, 0)
   t.is((await cli('bot', '+carol', 'empty-config')).code, 0)
 

@@ -59,7 +59,7 @@ copies of it.
 
 The generator writes `wallet.json`: a fresh 12-word BIP39 mnemonic from `bip39-mnemonic`.
 Every generated bot drive gets its own, so two bots are two identities. The CLI then adds
-`bot.json` pointing at the package's pinned `main.js`.
+`bot.json` pointing at the package's pinned `index.js`.
 
 On `--run` the entry reads `wallet.json`, and stops with an error if the drive has none. It
 starts the node with `fw up` and, once the backend accepts connections, sends
