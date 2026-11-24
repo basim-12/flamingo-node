@@ -13,7 +13,7 @@ async function tasks (pkgs) {
   const run_dir = path.join(pkgs.root, 'run')
   const running = new Map()
   let saving = Promise.resolve()
-  const api = { close, list, see, create, build, run, end, log, remove }
+  const api = { close, list, see, create, build, run, end, log, drop }
 
   const registry = Object.assign(Object.create(null), await read_json(path.join(pkgs.root, 'bots.json')))
   return api
@@ -59,13 +59,13 @@ async function tasks (pkgs) {
     return list().some(name => reference(registry[name]).id === id && runner(name))
   }
 
-  async function create (name, spec, cwd) {
+  async function create (name, spec) {
     if (registry[name]) throw new Error(`Bot already exists: ${name}`)
-    const from = await pkgs.source(spec, cwd)
+    const from = await pkgs.source(spec)
     if (from.local) throw new Error('A bot needs a drive, not a local path: pass a package name, drive id or dat:// reference')
     let link
     if (from.file) {
-      link = await pkgs.create(name, spec, cwd, { namespace: 'bot', prepare: write_bot_json })
+      link = await pkgs.create(name, spec, { namespace: 'bot', prepare: write_bot_json })
     } else {
       const opened = await pkgs.open_drive(from.link, false)
       try {
@@ -207,16 +207,15 @@ async function tasks (pkgs) {
     } finally { await core.close() }
   }
 
-  async function remove (link) {
+  async function drop (name) {
+    const link = registry[name]
+    if (!link) throw new Error(`Unknown bot: ${name}`)
     if (busy(link)) throw new Error('Cannot delete a running bot or its package')
-    await pkgs.remove(link)
-    const { id } = reference(link)
-    for (const name of list()) {
-      if (reference(registry[name]).id !== id) continue
-      // named after the bot, so a later bot with the same name would inherit them
-      for (const kind of ['log', 'audit']) await (await pkgs.core(kind, name)).purge()
-      delete registry[name]
-    }
+    const pack = pkgs.find(link)
+    if (pack) await pkgs.drop(pack)
+    // named after the bot, so a later bot with the same name would inherit them
+    for (const kind of ['log', 'audit']) await (await pkgs.core(kind, name)).purge()
+    delete registry[name]
     await save()
   }
 

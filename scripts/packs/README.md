@@ -1,71 +1,83 @@
 # packs
 
-Named, versioned Hyperdrives on this machine. A pack is just data: a drive with
-some files in it. Packs know nothing about bots or anything that runs; `tasks`
-builds on top of them.
+This module keeps packages on this machine. A package is a drive (a Hyperdrive) with a
+name: just data, some files in a drive. The `cli pkg` commands are this module. It never
+calls into [tasks](../tasks/README.md), which is built on top of it.
 
 ```js
+const path = require('bare-path')
 const process = require('bare-process')
 const packs = require('./packs')
 
-const pkgs = await packs() // under packs.STORAGE unless you pass somewhere else
-await pkgs.create('my-app', './src', process.cwd())
+const cwd = process.cwd()
+const dirpath = path.join(cwd, './src')
+const pkgs = await packs() // keeps everything in ~/.ds, packs.STORAGE, unless given a folder
+await pkgs.create('my-app', dirpath)
 console.log(pkgs.info('my-app')) // Name: my-app / Drive: dat://…
 await pkgs.close()
 ```
 
+Every path this module takes has to be absolute. If you have a relative path, make it
+absolute yourself, against the folder you mean, because this module can run in another
+process with a working directory of its own. That is what the cli does: the module runs
+inside the daemon, so the cli makes each path absolute before it sends the command.
+
 ## Drive references
 
-Every pack is recorded as a full reference to one exact revision:
+Every package is recorded as a full reference to one exact revision:
 
 ```text
 dat://<length>.<fork>.<id>.<hash>
 ```
 
-`id` names the drive; `length`, `fork` and `hash` pin its content. Opening a
-reference checks the hash, so a reference can't silently point at other content.
+`id` is the drive's public key. It stays the same when the drive changes, so it names the
+drive, not its content. `length`, `fork` and `hash` pick out one revision of it. Opening a
+reference checks that revision's hash, so a reference can't quietly point at other
+content.
 
 ## Storage
 
 ```text
-<root>/
-├── pkgs.json    # { "name": "dat://…" }
-└── corestore/   # every drive's data, shared
+~/.ds/            # or the root passed to packs()
+├── pkgs.json    # { "<package-name>": "dat://<its drive>", ... }
+└── corestore/   # the data of every drive, plus the hypercores core() returns
 ```
 
 ## API
 
 `await packs(root = packs.STORAGE)` reads `pkgs.json` and returns an object with the
-functions below. The shared store opens by itself the first time a drive is touched, so
-reading names works while a running bot holds its lock.
+functions below. `list()`, `get()`, `find()` and `info()` only read `pkgs.json`. The drive
+storage is opened the first time a function needs a drive, so reading names works even
+while another process has the storage open; a function that needs a drive then fails with
+`Drive storage is in use by another process`.
 
 ### Opening and closing
 
 | Function | What it does |
 | --- | --- |
-| `close()` | Wait for pending saves and close the store. |
+| `close()` | Waits for `pkgs.json` to finish saving, and closes the drive storage if it was opened. |
 
 ### Names
 
 | Function | What it does |
 | --- | --- |
-| `list()` | Pack names, sorted. |
-| `get(name)` | The pack's reference, or `undefined`. |
-| `find(link)` | The name of a pack on the same drive as `link`, if any. |
+| `list()` | Package names, sorted. |
+| `get(name)` | The package's drive reference, or `undefined`. |
+| `find(link)` | The name of a package on the same drive as `link`, if any. |
 | `info(name)` | `Name: …` and `Drive: …` lines. Throws for an unknown name. |
 
 ### Drives
 
 | Function | What it does |
 | --- | --- |
-| `source(spec, cwd)` | Resolve a `<specifier>` (see `../README.md`) to what it points at: `{ local, generator }` for a local folder or file, or `{ link, file }` for a drive, plus `options` from `?query`. |
-| `open_drive(link, pinned = true)` | Open the drive behind `link`. Pinned: a read-only view at exactly that revision, hash checked. Not pinned: the live drive. Returns `{ drive, view, ref, close }`. |
-| `core(namespace, name)` | A plain hypercore in its own namespace, for data kept beside a drive rather than in it, such as a log. Opens the store. |
+| `source(spec)` | Resolve a `<specifier>` ([which forms there are](../README.md#specifiers)) to what it points at: `{ local, generator }` for a local folder or file, or `{ link, file }` for a drive, plus `options` from `?query`. A local path has to be absolute; `./src` is refused with `Not an absolute path: ./src`. |
+| `open_drive(link, pinned = true)` | Open the drive behind `link`, after checking the revision's hash. Returns `{ drive, view, ref, close }`. `view` is what to read from: with `pinned`, a read-only copy of exactly that revision; without it, the live drive itself. `ref` is `link` parsed by `packs.reference`. |
+| `core(namespace, name)` | Returns a hypercore (an append-only list of entries) stored under `namespace` and `name`, for data kept beside a drive rather than in it, such as a log. The same two names reopen the same core. Opens the drive storage. |
 | `load(from)` | Load the function a generator or entry file exports, from a `source()` result. The code is read straight from the drive at its pinned revision (or from its local folder); nothing is copied to disk. Returns `{ fn, code }`, where `code` is the drive's pinned reference. |
-| `create(name, spec, cwd, { namespace, prepare })` | Make a new pack from a `<specifier>`: copy a folder or drive, or run a generator into a fresh drive. `prepare(drive, code)` runs afterwards, before the pack is registered. `code` is the generator's pinned drive reference, or `null`. Returns the new reference. |
-| `update(drive)` | Point every pack on this drive at its latest saved revision. Returns that reference. |
-| `remove(link)` | Delete the drive's data and every pack name registered for it. |
-| `export_to(name, folder, cwd)` | Copy a pack's latest files into a new folder outside managed storage. Returns the folder's path. |
+| `create(name, spec, { namespace, prepare })` | `cli pkg +<name> <specifier>`. Make a new package from a `<specifier>`: copy a folder or drive, or run a generator into a new drive. `namespace` is where in the storage the new drive is made, `pkg` unless given; tasks passes `bot`. `prepare(drive, code)` runs after that, before the package is registered, and `code` is the generator's pinned drive reference, or `null` when nothing was generated. Returns the new package's drive reference. |
+| `update(drive)` | Moves every package on `drive` to the drive's latest revision in `pkgs.json`. Returns that revision's reference. |
+| `drop(name)` | `cli pkg -<name>`. Delete the package's drive data, and every package name registered for that drive. Throws for an unknown name. |
+| `export(name, dirpath)` | `cli pkg <name> <dirpath>`. Copy the package's latest files into `dirpath`, a new folder outside the storage folder (`~/.ds`, or the root passed to `packs()`). `dirpath` has to be absolute, its parent has to exist and it must not exist yet. Returns the folder's real path. |
 
 ### Helpers on the module
 
@@ -82,9 +94,13 @@ file of the module graph straight from the drive, so relative requires, JSON, an
 text files such as a Dockerfile (`require('./Dockerfile', { with: { type: 'text' } })`)
 all come from the pinned revision.
 
-- **Packages from outside the drive.** Code can require only a fixed list of
-  modules (`RUNTIME` in `index.js`). This process loads them and hands them to the
-  Loader as `builtins`. Giving each drive its own dependencies comes later.
+- **Modules from outside the drive.** Every drive's code may require the builtins, which
+  are `BUILTINS` in [cap/index.js](../cap/index.js): `bare-path`, `bare-url` and
+  `bare-crypto`. An entry may also require `sandbox`, and nothing else. A generator may
+  also require what its `package.json` lists and has been granted with `cli cap +<name>`,
+  and a generator run from a local file anything that has been granted.
+  This process loads those modules and hands them to the Loader as `builtins`. The rules
+  are in [cap](../cap/README.md).
 - **No dynamic `import()`.** It would load code around the Loader, so every `.js`
   file is parsed with `acorn` first and refused if it uses one.
 - **Requires name their file with a plain string.** The Loader finds and reads every

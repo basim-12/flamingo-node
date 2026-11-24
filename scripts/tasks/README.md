@@ -9,13 +9,12 @@ It is built on [packs](../packs/README.md), which stores the drives and their na
 never calls into this module.
 
 ```js
-const process = require('bare-process')
 const packs = require('./packs')
 const tasks = require('./tasks')
 
 const pkgs = await packs()
 const bots = await tasks(pkgs)
-await bots.create('alice', 'my-app/generate?ask=no', process.cwd())
+await bots.create('alice', 'my-app/generate?ask=no')
 const { done } = await bots.run('alice', console.log) // console.log gets each line it logs
 // … later, from this process:
 await bots.end('alice')
@@ -76,12 +75,12 @@ does not open the drive storage, so it works even while another process has that
 | --- | --- | --- |
 | `list()` | `cli bot` | Bot names, sorted. |
 | `see(name)` | `cli bot <name>` | Returns `{ name, drive, package, output, running }`: the bot's drive reference, the package name its drive is registered under (or `null`), the address of the output drive that `--build` writes into (it has an address before the first build), and whether the bot is running. Throws for an unknown name. |
-| `create(name, spec, cwd)` | `cli bot +<name> <specifier>` | Register a bot. `spec` names a drive that already holds `bot.json`, or a generator in a drive (`<drive>/generate`). A generator fills a new drive, which is also registered as a package under the same name, and the cli writes its `bot.json`. Refused if the name is taken, if `spec` is a local path, or if the drive already belongs to another bot. Returns the bot's drive reference. |
+| `create(name, spec)` | `cli bot +<name> <specifier>` | Register a bot. `spec` names a drive that already holds `bot.json`, or a generator in a drive (`<drive>/generate`). A generator fills a new drive, which is also registered as a package under the same name, and the cli writes its `bot.json`. Refused if the name is taken, if `spec` is a local path, or if the drive already belongs to another bot. Returns the bot's drive reference. |
 | `build(name)` | `cli bot <name> --build` | If the code drive has a `setup.js`, runs it inside a microVM and saves what it writes into the output drive. Returns the text to print: what `setup.js` printed followed by `Built: <reference>`, or `Already built: <reference>` on a second build, or `Nothing to build` without a `setup.js`. Refused while the bot runs. |
 | `run(name, print)` | `cli bot <name> --run` | Loads the entry and calls it, in this process. Writes `run/<name>.pid`, calls `print` with each line the bot logs and stores that line in its log. Each time the bot writes to its drive, the reference in `bots.json` and in the packages list moves to the new revision. Returns `{ done, stop }`: `stop()` asks the bot to stop, and `done` settles with `see(name)` once it has. Refused if the bot is already running. |
 | `end(name)` | `cli bot <name> --end` | Stops the bot. If this process runs it, it is stopped directly; otherwise the process in `run/<name>.pid` is sent SIGTERM, and `end` waits up to 30 seconds for it to stop. Does nothing if the bot is not running. |
 | `log(name)` | `cli bot <name> --log` | Everything the bot has logged, oldest first, across every run, one line each. It opens the drive storage, so from the cli it is read by the daemon, which already has the storage open; that is why it works while the bot runs. |
-| `remove(link)` | `cli bot -<name>` | Takes the bot's drive reference, not its name. Deletes that drive, the package and the bot registered on it, and the bot's log and audit cores. The code drive is kept. Refused while the bot runs. |
+| `drop(name)` | `cli bot -<name>` | Deletes the bot, its log and audit cores, and the package its drive is registered as, if there is one, with that drive's data. The code drive is kept. Refused while the bot runs. |
 | `close()` | none | Waits for `bots.json` to finish saving. It closes this module, not a bot, so no command calls it. |
 
 `tasks.describe(seen)` turns what `see` returns into the lines `cli bot <name>` prints.

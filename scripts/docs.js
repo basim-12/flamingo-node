@@ -166,7 +166,7 @@ test('a dat:// reference must match exactly', async t => {
   t.is((await cli('pkg', '+x', wrong_hash)).err, 'Drive hash mismatch')
   t.is((await cli('pkg', '+x', wrong_length)).err, 'Referenced drive revision is unavailable')
   t.ok((await cli('pkg', '+x', 'dat://not-a-reference')).err.startsWith('Invalid pinned drive reference'), 'malformed reference refused')
-  t.is((await cli('pkg', '+x', './no-such-folder')).err, 'No such file or folder: ./no-such-folder')
+  t.is((await cli('pkg', '+x', './no-such-folder')).err, `No such file or folder: ${path.join(repo, 'no-such-folder')}`)
 })
 
 // A path says so: it starts with ./, ../ or /. A bare name is a package or a drive id,
@@ -345,12 +345,13 @@ test('pkg -<name> deletes a package', async t => {
 // works on its own. Here is the same import, export and delete, called as functions.
 test('packs module: package operations as plain functions', async t => {
   const pkgs = await packs(path.join(home, 'packs-api'))
-  const link = await pkgs.create('code', sample, repo)
+  const link = await pkgs.create('code', sample)
   t.is(pkgs.get('code'), link, 'registered')
   t.alike(pkgs.list(), ['code'])
-  const folder = await pkgs.export_to('code', path.join(home, 'packs-api-export'), repo)
+  const folder = await pkgs.export('code', path.join(home, 'packs-api-export'))
   t.alike(files_of(folder), files_of(sample), 'exported')
-  await pkgs.remove(link)
+  t.is(await pkgs.create('x', './sample').catch(err => err.message), 'Not an absolute path: ./sample', 'the caller makes a path absolute')
+  await pkgs.drop('code')
   t.alike(pkgs.list(), [], 'removed')
   await pkgs.close()
 })
@@ -403,8 +404,8 @@ test('cap module: grant, see, revoke', async t => {
 test('tasks module: start a bot, let it save, stop it', async t => {
   const pkgs = await packs(path.join(home, 'tasks-api'))
   const bots = await tasks(pkgs)
-  await pkgs.create('code', sample, repo)
-  const created = await bots.create('hello', 'code/generate', repo)
+  await pkgs.create('code', sample)
+  const created = await bots.create('hello', 'code/generate')
 
   await bots.run('hello', () => {})
   t.ok((await bots.see('hello')).running, 'running')
@@ -414,7 +415,7 @@ test('tasks module: start a bot, let it save, stop it', async t => {
 
   t.not(seen.drive, created, 'moved to a newer revision')
   t.is(pkgs.get('hello'), seen.drive, 'package moved with it')
-  const folder = await pkgs.export_to('hello', path.join(home, 'tasks-api-export'), repo)
+  const folder = await pkgs.export('hello', path.join(home, 'tasks-api-export'))
   t.is(fs.readFileSync(path.join(folder, 'data.txt'), 'utf8'), 'saved while running')
   await bots.close()
   await pkgs.close()
@@ -425,8 +426,8 @@ test('tasks module: start a bot, let it save, stop it', async t => {
 // going through argument parsing. Here is a package, a bot, its run and its log, as calls.
 test('runtime module: the cli as plain functions', async t => {
   const ds = await runtime(path.join(home, 'runtime-api'))
-  await ds.pkg.create('code', sample, repo)
-  await ds.bot.create('hello', 'code/generate', repo)
+  await ds.pkg.create('code', sample)
+  await ds.bot.create('hello', 'code/generate')
   t.alike([ds.pkg.list(), ds.bot.list()], [['code', 'hello'], ['hello']], 'a code package, a bot, and the bot drive registered too')
 
   const run = await ds.bot.run('hello', () => {})
@@ -435,7 +436,7 @@ test('runtime module: the cli as plain functions', async t => {
   await run.done
   t.ok((await ds.bot.log('hello')).includes('sample stopping'), 'its log core has what it printed')
 
-  await ds.bot.remove('hello')
+  await ds.bot.drop('hello')
   t.alike(ds.bot.list(), [], 'bot gone')
   t.is((await ds.bot.log('hello').catch(err => err.message)), 'Unknown bot: hello')
   await ds.close()

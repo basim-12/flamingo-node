@@ -1,4 +1,5 @@
 #!/usr/bin/env bare
+const path = require('bare-path')
 const process = require('bare-process')
 const remote = require('./remote')
 const { foreground } = require('./runtime')
@@ -73,10 +74,10 @@ async function command (ds, { kind, action, name, source }, cwd) {
   }
   if (kind === 'pkg') {
     if (action === 'list') return await listing(await ds.pkg.list(), ds.pkg.info) || 'No pkgs.'
-    if (action === 'create') await ds.pkg.create(name, source, cwd)
-    if (action === 'export') return await ds.pkg.info(name) + '\nExported to: ' + await ds.pkg.export_to(name, source, cwd)
+    if (action === 'create') await ds.pkg.create(name, absolute(source, cwd))
+    if (action === 'export') return await ds.pkg.info(name) + '\nExported to: ' + await ds.pkg.export(name, path.resolve(cwd, source))
     if (action === 'delete') {
-      await ds.pkg.remove(name)
+      await ds.pkg.drop(name)
       return `Deleted: ${name}`
     }
     return ds.pkg.info(name)
@@ -84,7 +85,7 @@ async function command (ds, { kind, action, name, source }, cwd) {
   const see = async name => describe(await ds.bot.see(name))
   if (action === 'list') return await listing(await ds.bot.list(), see) || 'No bots.'
   if (action === 'create') {
-    await ds.bot.create(name, source, cwd)
+    await ds.bot.create(name, absolute(source, cwd))
     return see(name)
   }
   if (action === 'run') return describe(await ds.bot.run(name)) + `\nRunning in the background. Its log: cli bot ${name} --log`
@@ -96,10 +97,16 @@ async function command (ds, { kind, action, name, source }, cwd) {
   if (action === 'build') return ds.bot.build(name)
   if (action === 'end') await ds.bot.end(name)
   if (action === 'delete') {
-    await ds.bot.remove(name)
+    await ds.bot.drop(name)
     return `Deleted: ${name}`
   }
   return see(name)
+}
+
+// The daemon has a working directory of its own, so a relative path is made absolute here,
+// against the directory the command was typed in.
+function absolute (spec, cwd) {
+  return /^\.{1,2}\//.test(spec) ? path.resolve(cwd, spec) : spec
 }
 
 // every name, as the same block the single name command prints

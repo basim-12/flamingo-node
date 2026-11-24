@@ -16,8 +16,8 @@ async function runtime (root) {
       list: pkgs.list,
       info: pkgs.info,
       create: pkgs.create,
-      export_to: pkgs.export_to,
-      remove: name => bots.remove(pkg_of(name))
+      export: pkgs.export,
+      drop: drop_pkg
     },
     cap: pkgs.caps,
     bot: {
@@ -28,14 +28,17 @@ async function runtime (root) {
       run: bots.run,
       end: bots.end,
       log: bots.log,
-      remove: async name => bots.remove((await bots.see(name)).drive)
+      drop: bots.drop
     }
   }
 
-  function pkg_of (name) {
+  // a package that is a bot's drive goes with its bot, so the bot is not left without one
+  async function drop_pkg (name) {
     const link = pkgs.get(name)
     if (!link) throw new Error(`Unknown package: ${name}`)
-    return link
+    const { id } = packs.reference(link)
+    for (const bot of bots.list()) if (packs.reference((await bots.see(bot)).drive).id === id) return bots.drop(bot)
+    await pkgs.drop(name)
   }
 }
 

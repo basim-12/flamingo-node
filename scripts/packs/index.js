@@ -29,7 +29,7 @@ async function packs (root = STORAGE) {
   await fsp.mkdir(root, { recursive: true, mode: 0o700 })
   const registry = Object.assign(Object.create(null), await read_json(path.join(root, 'pkgs.json')))
   const caps = await capabilities(root)
-  return { root, caps, close, list, get, find, info, source, open_drive, load, core, disk, create, update, remove, export_to }
+  return { root, caps, close, list, get, find, info, source, open_drive, load, core, disk, create, update, drop, export: export_files }
 
   // The shared store, opened the first time a drive is touched. Reading names never
   // opens it, so inspecting works while a running bot holds its lock.
@@ -87,15 +87,15 @@ async function packs (root = STORAGE) {
   // Resolve a <specifier>: a local folder or file (`./x`, `../x`, `/x`), a dat://
   // reference, a package name or a drive id, each optionally followed by /<file> to
   // run a generator. A path says so, so the forms never overlap.
-  async function source (spec, cwd) {
+  async function source (spec) {
     const q = spec.indexOf('?')
     const base = q < 0 ? spec : spec.slice(0, q)
     const options = Object.fromEntries(new URLSearchParams(q < 0 ? '' : spec.slice(q + 1)))
     if (base.startsWith('dat://')) return { link: spec, ...reference(spec) }
     if (/^\.{0,2}\//.test(base)) {
-      const local = path.resolve(cwd, base)
-      if (!(await exists(local))) throw new Error(`No such file or folder: ${base}`)
-      const real = await fsp.realpath(local)
+      if (!path.isAbsolute(base)) throw new Error(`Not an absolute path: ${base}`)
+      if (!(await exists(base))) throw new Error(`No such file or folder: ${base}`)
+      const real = await fsp.realpath(base)
       const storage = await fsp.realpath(root)
       if (inside(real, storage) || inside(storage, real)) throw new Error('Source must not overlap managed storage')
       return { local: real, generator: (await fsp.stat(real)).isFile(), options }
@@ -165,9 +165,9 @@ async function packs (root = STORAGE) {
   // Make a new named drive from a <specifier>: copy a folder or drive, or run a
   // generator into it. `prepare(drive, code)` runs after that and before the drive
   // is registered; `code` is the generator's pinned drive reference, if any.
-  async function create (name, spec, cwd, { namespace = 'pkg', prepare } = {}) {
+  async function create (name, spec, { namespace = 'pkg', prepare } = {}) {
     if (registry[name]) throw new Error(`Package already exists: ${name}`)
-    const from = await source(spec, cwd)
+    const from = await source(spec)
     const store = await drives()
     const drive = new Hyperdrive(store.namespace(namespace).namespace(name).namespace(uuid()))
     await drive.ready()
@@ -202,20 +202,19 @@ async function packs (root = STORAGE) {
     return link
   }
 
-  // Delete the drive behind `link` and every package name registered for it.
-  async function remove (link) {
-    const { id } = reference(link)
-    const opened = await open_drive(link, false)
+  async function drop (name) {
+    if (!registry[name]) throw new Error(`Unknown package: ${name}`)
+    const { id } = reference(registry[name])
+    const opened = await open_drive(registry[name], false)
     await purge(opened.drive)
-    for (const name of list()) if (reference(registry[name]).id === id) delete registry[name]
+    for (const other of list()) if (reference(registry[other]).id === id) delete registry[other]
     await save()
   }
 
-  // Copy a package's latest files into a new folder outside managed storage.
-  async function export_to (name, folder, cwd) {
+  async function export_files (name, dirpath) {
     if (!registry[name]) throw new Error(`Unknown package: ${name}`)
-    const dest = path.resolve(cwd, folder)
-    const real = path.join(await fsp.realpath(path.dirname(dest)), path.basename(dest))
+    if (!path.isAbsolute(dirpath)) throw new Error(`Not an absolute path: ${dirpath}`)
+    const real = path.join(await fsp.realpath(path.dirname(dirpath)), path.basename(dirpath))
     if (inside(await fsp.realpath(root), real)) throw new Error('Export must be outside managed storage')
     const opened = await open_drive(registry[name], false)
     try { await export_folder(opened.view, real) } finally { await opened.close() }
@@ -345,7 +344,6 @@ async function exists (file) {
   }
 }
 
-// Write to a temporary file and rename it, so a crash never leaves half a registry.
 function inside (root, target) {
   return target === root || target.startsWith(root + path.sep)
 }
