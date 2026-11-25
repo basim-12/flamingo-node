@@ -12,9 +12,8 @@ npm install -g flamingo-node
 
 That installs one command, `fw`.
 
-You also need **Docker** installed and running. That is a requirement of where the node
-runs today rather than of the node itself; [DESIGN.md](DESIGN.md) says why, and what
-replaces it.
+You also need **Docker** installed and running, because the node runs in a Docker container
+([DESIGN.md](DESIGN.md#where-the-node-runs)).
 
 ## Run it
 
@@ -26,6 +25,13 @@ fw up --shutdown         # stop it
 ```
 
 `fw up` is the whole lifecycle. There is no separate `start`, `stop` or `down`.
+
+**`fw up` and `fw up --attach` do not start the node.** They run it as a datashell bot, and
+the bot's `lib/drive/index.js` requires `bare-fs`, which a bot's `index.js` may not require.
+They stop with `A bot's index.js may require only the builtins and sandbox, so bare-fs is not
+there`. In a new `~/.ds` they stop one step earlier, with
+`This drive requires bare-fs, which it was not granted`, until `bare-fs`, `bare-process` and
+`bip39-mnemonic` are granted with `npx cli cap +<name>`.
 
 A background `fw up` returns as soon as the node is running, and what the node prints goes
 to its log rather than to your terminal. `fw up --attach` shows that output here as it
@@ -94,8 +100,8 @@ the one place a type is registered.
 }
 ```
 
-The paths are inside the node, so the defaults work as they are. `WS_PORT` is the one most
-worth changing.
+The paths are inside the node, so the defaults work as they are. `WS_PORT` is the port the
+WebSocket API listens on.
 
 ## Network scenarios
 

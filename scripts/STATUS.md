@@ -1,27 +1,25 @@
-# What works, and what is planned
+# Commands, in short
 
-Every `cli` command that works today, with the shortest useful example of each, and the
-ones we have agreed on but not built yet. Updated at the end of each worklog.
+Every `cli` command, with the shortest useful example of each.
 
 Longer explanations live beside the code: [packages](packs/README.md),
 [bots](tasks/README.md), [caps](cap/README.md), [the sandbox](sandbox/README.md). The
 [readme](README.md) is the overview.
 
-## Works today
+## Packages
 
-### Packages
-
-A package is a name for a drive of code. The drive is content addressed, so its address
-changes when its contents do, and a name saves you from carrying the address around.
+A package is a name for a drive. A drive is addressed by its public key, which stays the
+same when its files change; only the `dat://` reference, which also names one revision, moves
+on. The key is a long string that nobody can remember, so the name is what you type.
 
 | Command | What it does |
 | --- | --- |
 | `cli pkg` | Every package, as the same block `cli pkg <name>` prints for one |
 | `cli pkg +<name> <specifier>` | Copy what the specifier points at into a new drive and name it |
-| `cli pkg <name> --import=<specifier>` | The same thing, spelled for a script |
+| `cli pkg <name> --import=<specifier>` | The same thing, written as one flag |
 | `cli pkg <name>`, or `--see` after it | Its name and the pinned address of its drive |
 | `cli pkg <name> <dirpath>` | Write the drive's files into a folder |
-| `cli pkg <name> --export=<dirpath>` | The same thing, spelled for a script |
+| `cli pkg <name> --export=<dirpath>` | The same thing, written as one flag |
 | `cli pkg -<name>` | Forget the name and delete the drive |
 
 ```sh
@@ -33,7 +31,7 @@ cli pkg +demo ./demo
 An import always copies. Naming a drive you already have gives the new name its own drive
 at its own address, not a second label on the first one.
 
-### Bots
+## Bots
 
 A bot runs code from a package, and can be stopped and started again. It keeps what it
 produces in a drive of its own, so two bots made from one package are two separate things.
@@ -64,18 +62,18 @@ cli bot +mybot demo/generate.js
 The output drive is listed from the start, at length `0` until `--build` writes into it.
 Its id stays the same after a build; only the length and the hash change.
 
-`setup.js` is optional. `--build` says `Nothing to build` for a drive without one, and a bot
-with no setup runs against the base image as it comes. A second build has nothing to do either,
-because what the first one built is pinned in the drive.
+`setup.js` is optional. `--build` says `Nothing to build` for a drive without one, and that
+bot's sandbox uses the base image unchanged. A second build says `Already built:` with the
+reference of what the first one built, which the bot's drive keeps in `build.json`.
 
 A bot's log is its own, not the terminal's: it outlives the run, and `--log` reads it
 whether the bot is running or stopped. Its first lines are the block above, as it stood
 when the bot started.
 
-### Caps
+## Caps
 
-A drive gets nothing it was not granted. Three modules are builtin because they only
-compute — they read nothing and reach nowhere — so they are never asked for.
+Three modules, the builtins, only compute, so any drive's code may require them without a
+grant. Every other module is a cap, and code gets it only once it is granted.
 
 | Command | What it does |
 | --- | --- |
@@ -96,19 +94,16 @@ cli cap --expand
 #   bare-fs
 ```
 
-Grants answer for generators. A generator that requires a module it never declared is told
-`Cannot find module '<name>'`, because from the code's side that is what happened: it never
-asked, so nothing was put there. If the cap is not granted either way, declared or not, it is
-told `This drive requires <name>, which it was not granted`.
+A generator that requires a cap which is not granted is told
+`This drive requires <name>, which it was not granted`. If the cap is granted but the
+generator's `package.json` does not list it, it is told `Cannot find module '<name>'`.
 
-A bot's `index.js` is not granted anything. It may require the builtins and `sandbox`, which
-is a handle on a microVM built from what the bot was granted, and nothing else resolves
-whatever is declared, so it is told
+A bot's `index.js` may require only the builtins and `sandbox`, a handle on a microVM with no
+network. Nothing else is handed to it, whatever is granted or declared, and it is told
 `A bot's index.js may require only the builtins and sandbox, so <name> is not there`. The
-sandbox is only booted if `index.js` asks something of it, so a bot that never touches it does
-not start one.
+microVM is only started the first time `index.js` uses `sandbox`.
 
-### Specifiers
+## Specifiers
 
 Anywhere a command takes a `<specifier>`:
 

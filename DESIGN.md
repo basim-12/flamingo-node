@@ -5,22 +5,15 @@ is for working on it.
 
 ## One command
 
-`fw up` is the only command. `start`/`stop` used to manage bitcoind and lightningd as local
-processes while `up`/`down` managed the sandbox they ran in, and keeping both meant the
-caller had to know which one it wanted. Where the node runs is not the caller's business,
-so there is nothing left to choose between.
+`fw up` is the only command, and its flags say what to do: start in the background,
+`--attach`, `--run <file.json>` or `--shutdown`. Where the node runs is not the caller's
+business, so there is no command for it.
 
 ## Where the node runs
 
 The node runs in a container that [flamingo-docker](https://github.com/playproject-io/flamingo-docker)
-builds, started through datashell's sandbox module. That is why Docker is a prerequisite,
-and it is the one thing flamingo knows about how it is run.
-
-It should not know even that. datashell is growing a generic runner — a microVM per
-sandbox, no image of ours in it — and when the node moves onto it, installing whatever the
-node needs becomes the node's own setup step and datashell stops carrying a Docker
-module at all. Whether Docker survives that as something the node installs for itself, or
-goes entirely, is still open.
+builds, started through datashell's sandbox module (`require('datashell').sandbox`). That
+is why Docker is a prerequisite.
 
 ## Runtimes
 
@@ -61,11 +54,14 @@ The generator writes `wallet.json`: a fresh 12-word BIP39 mnemonic from `bip39-m
 Every generated bot drive gets its own, so two bots are two identities. The CLI then adds
 `bot.json` pointing at the package's pinned `index.js`.
 
-On `--run` the bot's `index.js` reads `wallet.json`, and stops with an error if the drive has none. It
-starts the node with `fw up` and, once the backend accepts connections, sends
+`lib/drive/index.js` reads `wallet.json`, and stops with an error if the drive has none. It
+starts the node with `fw up --node` and, once the backend accepts connections, sends
 `initialize_node_wallet` one `recover` request with the stored mnemonic over `bare-ws`, so
-node4 always comes up as this bot's identity. On stop it runs `fw up --shutdown`. The bot
-only asks for the node to start and stop; how it runs is flamingo-node's business.
+node4 comes up as this bot's identity. On stop it runs `fw up --node --shutdown`.
+
+That file requires `bare-fs`, `bare-process`, `bare-subprocess` and `bare-ws`, and a bot's
+`index.js` may require only the builtins and `sandbox`, so `cli bot flamingo --run` is refused
+before any of it runs.
 
 Making one by hand rather than letting `fw up` do it is three commands:
 
@@ -85,12 +81,3 @@ cli bot demo --run
 - Node, by checksum, for the architecture `uname -m` reports
 - the Python packages, by Core Lightning's own requirements file at that commit, with Mako
   pinned after it so it resolves MarkupSafe to what is already installed
-
-## Not there yet
-
-- **The node is not in the drive.** The bot runs `fw` from this repository, so bots have to
-  be run from the repository folder. Nothing reads `lib/drive`'s files from the drive yet
-  either: the bot asks `fw up`, and `fw` loads them from its own `node_modules`.
-- **Only the identity survives a restart.** The node runs from the installed repository and
-  its data folder, so on-chain and channel data is shared rather than per bot.
-- **No peer replication.** Deferred.

@@ -170,17 +170,11 @@ automatically.
 
 What a drive's code may require, and it depends on which code.
 
-A bot's **`index.js`** may require the builtins and `sandbox`, and nothing else at all. It is
-written by anyone, it runs out here rather than inside the sandbox, and it runs unattended on
-every start, so it is given no way to reach this machine: the builtins compute and touch
-nothing, and `sandbox` is a handle on a microVM built from what was granted before `index.js`
-ran. Granting it something makes no difference, and it is told the rule rather than that it was
-not granted.
+A bot's **`index.js`** may require the builtins and `sandbox`, and nothing else, whatever is
+granted. The builtins only compute, and `sandbox` is a handle on a microVM with no network.
 
-A **generator** keeps the older rule: the builtins, plus what its `package.json` declares and
-has been granted, where declaring is not the same as being granted. It runs once, when someone
-types the specifier that names it. That it can still be granted something with real IO is a gap,
-and what closes it is grants becoming per app rather than one list for everything.
+A **generator** may require the builtins, plus each module its `package.json` lists that has
+also been granted. Listing a module does not grant it.
 
 The model is [cap](cap/README.md), and the handle is in [sandbox](sandbox/README.md).
 

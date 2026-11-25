@@ -7,24 +7,9 @@ const { import_folder, export_folder } = require('../mirror')
 // The installer puts msb here and does not touch PATH, so this is where we look for it.
 const MSB = path.join(os.homedir(), '.microsandbox', 'bin', 'msb')
 
-// The one image datashell runs anything in. Not an option, because a sandbox that takes any
-// image means ten bots pull ten images that do the same job: there are seven here from
-// testing and they come to 1.4 GiB, while one shared image is 80 MiB however many bots use
-// it. The module could offer the choice if it were published on its own; datashell does not
-// take it.
-//
-// Pinned by digest, so it is the same thing every time and not something
-// we maintain. It carries Node because a setup script is still run inside as JavaScript. Once
-// that script runs outside instead, nothing in here needs a runtime and this can be a smaller
-// base.
+// every sandbox uses this one image, pinned by digest so it is the same image every time
 const IMAGE = 'node:26-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9'
 
-// Run a drive's code in a microVM that reaches only what it was granted. The drive's files
-// go in through a read-only mount, and whatever the code writes to the output mount comes
-// back out into the output drive, so the result of a run has an address.
-//
-// Without an output drive there is no writable mount at all, because a run that produces
-// nothing has no use for one.
 async function run (opts) {
   const box = await provision(opts)
   const { command } = opts
@@ -52,11 +37,6 @@ async function run (opts) {
   }
 }
 
-// The same sandbox, booted with nothing running in it, and the handle a drive's own script
-// drives it with. The script runs out here under Bare where it can resolve nothing, so the
-// handle is the only thing it can do anything through, and the sandbox it names was already
-// built from what was granted: the script chooses what to run inside, never what the
-// sandbox is allowed to reach.
 async function open (opts) {
   const box = await provision(opts)
   await box.message('open', { caps: opts.caps || {}, image: IMAGE })
@@ -66,13 +46,11 @@ async function open (opts) {
     id: box.id,
     stop,
     handle: {
-      // What the command printed. It throws with the code the command exited with, so a
-      // script can tell a failure from an empty result.
+      // throws with the exit code, so index.js can tell a failure from an empty result
       async run (command, args = []) {
         await box.message('exec', { command, args })
         return capture(MSB, ['exec', '--no-tty', box.name, '--', command, ...args])
       },
-      // Left running, so the script can get on with something else and stop later.
       async start (command, args = []) {
         await box.message('start', { command, args })
         return capture(MSB, ['exec', '-d', '--no-tty', box.name, '--', command, ...args])

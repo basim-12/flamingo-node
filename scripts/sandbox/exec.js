@@ -14,8 +14,7 @@ function capture (cmd, args, { timeout = 0 } = {}) {
     child.once('exit', code => {
       if (timer) clearTimeout(timer)
       if (code === 0) return resolve(out.trim())
-      // The code is carried, not only printed, because a caller may be a drive's own
-      // script asking whether the command it ran inside the sandbox worked.
+      // the exit code is kept, so index.js can tell how a command inside the sandbox failed
       const failed = new Error(err.trim() || `${cmd} exited with code ${code}`)
       failed.code = code
       reject(failed)

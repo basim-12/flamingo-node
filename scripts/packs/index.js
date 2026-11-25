@@ -241,23 +241,8 @@ async function packs (root = STORAGE) {
     return loader.import(new URL('drive://' + file))
   }
 
-  // What code in a drive may require.
-  //
-  // A bot's index.js, which is what gets a sandbox, may require the builtins and `sandbox` and
-  // nothing else at all. It is written by anyone, it runs out here rather than inside the
-  // sandbox, and it runs on every start with nobody watching, so it is given no way to reach
-  // this machine: the builtins only compute and hand over no power, and `sandbox` is a handle
-  // on a microVM built from what was granted before index.js ran, so index.js decides what
-  // happens in there and never what it may reach. Declaring a dependency does not change any
-  // of that.
-  //
-  // A generator keeps the older rule, declared and granted, because it runs once, when someone
-  // types the specifier that names it, and filling a drive is all it is for. That it can still
-  // be granted something with real IO is a gap rather than a decision; what closes it is grants
-  // becoming per app instead of one list that answers for everything.
-  //
-  // `own` is a path the user pointed at rather than a drive. They chose that file themselves,
-  // so it is not arbitrary code and the grants are the whole answer, as they were before.
+  // which code gets which modules: cap/README.md#which-code-gets-what
+  // `own` is true for a generator run from a local file
   async function modules_for (drive, own, sandbox) {
     const provided = {}
     const manifest = own || sandbox ? null : await drive.get('/package.json')
