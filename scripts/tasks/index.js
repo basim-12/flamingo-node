@@ -67,9 +67,12 @@ async function tasks (pkgs) {
   async function create (name, spec) {
     if (registry[name]) throw new Error(`Bot already exists: ${name}`)
     const from = await pkgs.source(spec)
-    if (from.local) throw new Error('A bot needs a drive, not a local path: pass a package name, drive id or dat:// reference')
     let link
-    if (from.file) {
+    if (from.local) {
+      // a folder or a local generator brings its own bot.json, because there is no code drive
+      // here for the cli to point one at
+      link = await pkgs.create(name, spec, { namespace: 'bot', prepare: config })
+    } else if (from.file) {
       link = await pkgs.create(name, spec, { namespace: 'bot', prepare: write_bot_json })
     } else {
       const opened = await pkgs.open_drive(from.link, false)
@@ -79,7 +82,7 @@ async function tasks (pkgs) {
       } finally { await opened.close() }
       const { id } = reference(link)
       const clash = list().find(other => reference(registry[other]).id === id)
-      if (clash) throw new Error(`That configuration drive is already used by bot: ${clash}`)
+      if (clash) throw new Error(`That drive is already the drive of bot: ${clash}`)
     }
     registry[name] = link
     await save()
@@ -247,7 +250,7 @@ function write_bot_json (drive, code) {
 
 async function config (drive) {
   const data = await drive.get('/bot.json')
-  if (!data) throw new Error('Configuration drive must contain bot.json')
+  if (!data) throw new Error("A bot's drive must contain bot.json, which says what to run")
   const { run } = JSON.parse(data)
   if (typeof run !== 'string' || !reference(run).file) throw new Error('bot.json.run must be a pinned drive URL with a filepath')
   return run

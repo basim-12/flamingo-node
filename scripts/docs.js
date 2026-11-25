@@ -227,9 +227,9 @@ test('bot.json pins the code the bot runs', async t => {
   t.is(read_json(path.join(folder, 'bot.json')).run, code_link + '/index.js')
 })
 
-// A configuration drive is just a drive with a bot.json in it, so it can also be
-// written by hand, imported as a package, and then registered as a bot as it is.
-test('bot +<name> <config drive> uses an existing configuration drive', async t => {
+// A bot's drive is just a drive with a bot.json in it, so it can also be written by
+// hand, imported as a package, and then registered as a bot as it is.
+test('bot +<name> <drive> uses a drive that already has a bot.json', async t => {
   const folder = path.join(home, 'carol-config')
   fs.mkdirSync(folder)
   fs.writeFileSync(path.join(folder, 'bot.json'), JSON.stringify({ run: code_link + '/index.js' }))
@@ -237,6 +237,21 @@ test('bot +<name> <config drive> uses an existing configuration drive', async t 
   const result = await cli('bot', '+carol', 'carol-config')
   t.is(result.code, 0, result.err)
   t.is(drive_of(result), drive_of(await cli('pkg', 'carol-config')))
+})
+
+// A local folder can be a bot too, if it has a bot.json: it is imported into a new drive,
+// which becomes the bot's drive, and the bot runs the code its bot.json names.
+test('bot +<name> <folder> makes a bot from a folder with a bot.json', async t => {
+  const folder = path.join(home, 'erin-folder')
+  fs.mkdirSync(folder)
+  fs.writeFileSync(path.join(folder, 'bot.json'), JSON.stringify({ run: code_link + '/index.js' }))
+  const result = await cli_in(home, 'bot', '+erin', './erin-folder')
+  t.is(result.code, 0, result.err)
+  t.is(drive_of(result), drive_of(await cli('pkg', 'erin')), 'its drive is kept as a package of the same name')
+  t.is((await cli('bot', 'erin', '--run')).code, 0)
+  await cli('bot', 'erin', '--end')
+  t.ok((await cli('bot', 'erin', '--log')).out.includes('sample stopping'), 'it ran the code its bot.json names')
+  t.is((await cli('bot', '-erin')).out, 'Deleted: erin')
 })
 
 // --run starts a bot as a background daemon and gives the terminal back; the bot
@@ -327,21 +342,21 @@ test('what a bot saves while running is kept', async t => {
   t.is(drive_of(await cli('pkg', 'alice')), drive_of(await cli('bot', 'alice')), 'bot and package agree')
 })
 
-// Two bots on one drive would share one identity and one data folder, so a
-// configuration drive belongs to exactly one bot, and it must contain bot.json.
-// A bot must pin its code to a drive, so a local folder or local generator file
-// is refused.
+// Two bots on one drive would write their data into the same drive, so a drive is the
+// drive of one bot at most, and it must contain bot.json. A local folder or local
+// generator without a bot.json is refused, and leaves nothing behind.
 test('bot registration is refused when it would clash', async t => {
-  const local = 'A bot needs a drive, not a local path: pass a package name, drive id or dat:// reference'
-  const taken = 'That configuration drive is already used by bot: alice'
+  const missing = "A bot's drive must contain bot.json, which says what to run"
+  const taken = 'That drive is already the drive of bot: alice'
   const alice = drive_of(await cli('bot', 'alice'))
   t.is((await cli('bot', '+alice', 'sample/generate?ask=no')).err, 'Bot already exists: alice')
   t.is((await cli('bot', '+dave', 'alice')).err, taken, 'by package name')
   t.is((await cli('bot', '+dave', alice)).err, taken, 'by dat:// reference')
   t.is((await cli('bot', '+dave', parts_of(alice).id)).err, taken, 'by drive id')
-  t.is((await cli('bot', '+dave', 'by-link')).err, 'Configuration drive must contain bot.json')
-  t.is((await cli('bot', '+dave', sample)).err, local, 'local folder refused')
-  t.is((await cli('bot', '+dave', path.join(sample, 'generate.js'))).err, local, 'local generator refused')
+  t.is((await cli('bot', '+dave', 'by-link')).err, missing)
+  t.is((await cli('bot', '+dave', sample)).err, missing, 'a local folder without bot.json')
+  t.is((await cli('bot', '+dave', path.join(sample, 'generate.js'))).err, missing, 'a local generator that writes none')
+  t.is((await cli('pkg', 'dave')).code, 1, 'and nothing was kept')
 })
 
 // Deleting a bot removes its own drive, but never the code it was made from.
@@ -449,7 +464,7 @@ test('runtime module: the cli as plain functions', async t => {
   const ds = await runtime(path.join(home, 'runtime-api'))
   await ds.pkg.create('code', sample)
   await ds.bot.create('hello', 'code/generate')
-  t.alike([ds.pkg.list(), ds.bot.list()], [['code', 'hello'], ['hello']], 'a code package, a bot, and the bot drive registered too')
+  t.alike([ds.pkg.list(), ds.bot.list()], [['code', 'hello'], ['hello']], "a code package, a bot, and the bot's drive registered too")
 
   const run = await ds.bot.run('hello', () => {})
   t.ok((await ds.bot.see('hello')).running, 'running')

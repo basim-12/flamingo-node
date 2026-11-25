@@ -41,7 +41,7 @@ produces in a drive of its own, so two bots made from one package are two separa
 | Command | What it does |
 | --- | --- |
 | `cli bot` | Every bot, as the same block `cli bot <name>` prints for one |
-| `cli bot +<name> <specifier>` | Make a bot. A generator fills its drive first |
+| `cli bot +<name> <specifier>` | Make a bot. A generator fills its drive first. A local folder or generator must bring its own `bot.json` |
 | `cli bot <name>`, or `--see` after it | Name, drive, package, output drive, how many lines its log holds, and running or stopped |
 | `cli bot <name> --build` | Run the drive's `setup.js` in a sandbox, into the output drive |
 | `cli bot <name> --run` | Start it in the background |

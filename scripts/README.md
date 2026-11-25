@@ -53,9 +53,11 @@ The `pkg` commands are a thin layer over the `packs` module; its API is in
 
 ## Specifiers
 
-`cli pkg +<name> <specifier>` takes any of these. `cli bot +<name> <specifier>`
-takes only the drive forms (not a local folder or file), because a bot pins its
-code to a drive.
+`cli pkg +<name> <specifier>` and `cli bot +<name> <specifier>` both take any of these.
+One difference for bots: a bot needs a `bot.json`, the file that says what code it runs.
+When the generator is in a drive, the cli writes `bot.json` itself, pointing at that drive.
+A local folder or a local generator file is not in a drive, so the folder must already
+contain a `bot.json`, or the generator must write one.
 
 | Specifier | Action |
 | --- | --- |
@@ -103,11 +105,11 @@ cli pkg +config "my-app/generate?ask=no"
 The `bot` commands are a thin layer over the `tasks` module, which is built on
 `packs`; its API is in [tasks/README.md](tasks/README.md).
 
-The code drive contains the application. One bot drive holds both configuration
-and generated data; each application chooses its own folder structure.
+The code drive contains the application. The bot's drive holds its `bot.json` and
+whatever the bot saves; each application chooses its own folder structure.
 
 `bot.json` contains the information the CLI needs to launch the application. When
-a bot is created from a generator, the CLI writes it: the pinned reference of the
+a bot is created from a generator in a drive, the CLI writes it: the pinned reference of the
 drive the generator came from, plus `/index.js`. So a code drive keeps its entry in
 `index.js`.
 
@@ -117,7 +119,7 @@ drive the generator came from, plus `/index.js`. So a code drive keeps its entry
 }
 ```
 
-Other application settings and persistent data belong in the bot drive. The entry
+Other application settings and persistent data belong in the bot's drive. The entry
 exports an async function receiving the writable drive and a lifecycle context:
 
 ```js
@@ -128,7 +130,7 @@ module.exports = async function (drive, { stopped, log }) {
 }
 ```
 
-`drive` is the writable bot drive. `stopped` resolves on `cli bot <name> --end`.
+`drive` is the bot's own drive, writable. `stopped` resolves on `cli bot <name> --end`.
 `log(line)` prints the line in every terminal attached to the bot and appends it to its log core. An
 entry may instead return a cleanup
 function, which the CLI awaits after `stopped`.
@@ -146,7 +148,7 @@ automatically.
 
 | Command | Action and behavior |
 | --- | --- |
-| `cli bot +<name> <specifier>` | Register a stopped bot. `<specifier>` must name a drive — package name, drive id or `dat://` reference — because a bot pins its code to a drive; local paths are refused. A drive on its own is used as the configuration drive directly (it must already contain a valid `bot.json`). `<drive>/generate` runs that drive's generator into a fresh bot drive, the CLI writes its `bot.json`, and it is registered as a package under `<name>` too. Reject an existing bot name, a package-name conflict, or a configuration drive already registered to another bot (checked by drive id). |
+| `cli bot +<name> <specifier>` | Make a new bot, stopped. A drive (package name, drive id or `dat://` reference) becomes the bot's drive as it is, and must already contain `bot.json`. A generator in a drive (`<drive>/generate`) fills a new drive, and the cli writes its `bot.json`. A local folder is copied into a new drive, and must contain `bot.json`. A local generator file fills a new drive, and must write `bot.json`. A new drive is also kept as a package named `<name>`. Refused if `<name>` is already a bot, or already a package when a new drive is made; if there is no valid `bot.json`; or if the drive already belongs to another bot. |
 | `cli bot <name>` / `cli bot <name> --see` | Show its drive reference, package name if available, the address of the drive its builds land in, how many lines its log holds, and running/stopped status. The output drive is listed before anything has been built into it, because its address does not change. |
 | `cli bot` | List registered bots. |
 | `cli bot <name> --run` | Verify and launch the file `bot.json`'s `run` names in the background, and return once it runs. Reuse existing bot data and identity. A bot is a singleton: refuse if it, or another bot on the same drive, is already running. |
