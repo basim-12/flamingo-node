@@ -28,7 +28,7 @@ const IMAGE = 'node:26-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257
 async function run (opts) {
   const box = await provision(opts)
   const { command } = opts
-  await box.entry('run', { caps: opts.caps || {}, command, image: IMAGE })
+  await box.message('run', { caps: opts.caps || {}, command, image: IMAGE })
   await capture(MSB, ['run', '-d', '--no-tty', ...box.flags, '--', ...command])
 
   return {
@@ -59,7 +59,7 @@ async function run (opts) {
 // sandbox is allowed to reach.
 async function open (opts) {
   const box = await provision(opts)
-  await box.entry('open', { caps: opts.caps || {}, image: IMAGE })
+  await box.message('open', { caps: opts.caps || {}, image: IMAGE })
   await capture(MSB, ['create', ...box.flags])
 
   return {
@@ -69,16 +69,16 @@ async function open (opts) {
       // What the command printed. It throws with the code the command exited with, so a
       // script can tell a failure from an empty result.
       async run (command, args = []) {
-        await box.entry('exec', { command, args })
+        await box.message('exec', { command, args })
         return capture(MSB, ['exec', '--no-tty', box.name, '--', command, ...args])
       },
       // Left running, so the script can get on with something else and stop later.
       async start (command, args = []) {
-        await box.entry('start', { command, args })
+        await box.message('start', { command, args })
         return capture(MSB, ['exec', '-d', '--no-tty', box.name, '--', command, ...args])
       },
       async put (file, data) {
-        await box.entry('put', { file, bytes: data.length })
+        await box.message('put', { file, bytes: data.length })
         const temp = path.join(box.work, 'put')
         await fsp.writeFile(temp, data)
         try {
@@ -86,7 +86,7 @@ async function open (opts) {
         } finally { await fsp.rm(temp, { force: true }) }
       },
       async get (file) {
-        await box.entry('get', { file })
+        await box.message('get', { file })
         const temp = path.join(box.work, 'get')
         await capture(MSB, ['copy', '-q', `${box.name}:${file}`, temp])
         try {
@@ -130,7 +130,7 @@ async function provision ({ drive, mount = [], output, caps = {}, audit }) {
   await audit.ready()
   // Cut short because the mount paths are built from it, and still unique to this core.
   const name = 'ds-' + audit.id.slice(0, 12)
-  // Where this run's entries start, so its end can be paired with its beginning.
+  // Where this run's messages start, so its end can be paired with its beginning.
   const began = audit.length
   let stopped = false
 
@@ -164,7 +164,7 @@ async function provision ({ drive, mount = [], output, caps = {}, audit }) {
       ...(output ? ['--mount-dir', `${out}:/out`] : []),
       IMAGE
     ],
-    entry (type, data) {
+    message (type, data) {
       return audit.append(Buffer.from(JSON.stringify({
         head: ['datashell', name, began],
         refs: { drive: drive.id, mount: mount.map(each => each.id), output: output ? output.id : null },
@@ -174,7 +174,7 @@ async function provision ({ drive, mount = [], output, caps = {}, audit }) {
       })))
     },
     // Only ever called because something asked for it: nothing else stops a sandbox
-    // early, so the end entry records it as asked for.
+    // early, so the end message records it as asked for.
     stop () {
       stopped = true
       return capture(MSB, ['stop', name])
@@ -183,7 +183,7 @@ async function provision ({ drive, mount = [], output, caps = {}, audit }) {
       return output ? import_folder(output, out) : Promise.resolve()
     },
     async done () {
-      await this.entry('end', { stopped })
+      await this.message('end', { stopped })
       await capture(MSB, ['rm', name])
       await fsp.rm(work, { recursive: true, force: true })
     }

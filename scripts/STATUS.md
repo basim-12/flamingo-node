@@ -101,11 +101,12 @@ Grants answer for generators. A generator that requires a module it never declar
 asked, so nothing was put there. If the cap is not granted either way, declared or not, it is
 told `This drive requires <name>, which it was not granted`.
 
-A bot's entry is not granted anything. It may require the builtins and `sandbox`, which is a
-handle on a microVM built from what the bot was granted, and nothing else resolves whatever is
-declared, so it is told `An entry may require the builtins and sandbox, so <name> is not there`.
-The sandbox is only booted if the entry asks something of it, so a bot that never touches it
-does not start one.
+A bot's `index.js` is not granted anything. It may require the builtins and `sandbox`, which
+is a handle on a microVM built from what the bot was granted, and nothing else resolves
+whatever is declared, so it is told
+`A bot's index.js may require only the builtins and sandbox, so <name> is not there`. The
+sandbox is only booted if `index.js` asks something of it, so a bot that never touches it does
+not start one.
 
 ### Specifiers
 

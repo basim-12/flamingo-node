@@ -32,20 +32,22 @@ A bot is a name registered against one drive, the bot's drive. It holds:
   to one revision. `/index.js` is the file in it to run.
 - whatever else the bot saves while it runs
 
-`index.js` exports one async function, the **entry**:
+`index.js` exports one async function, called when the bot runs:
 
 ```js
-module.exports = async function (drive, { stopped, log }) {
-  // drive: the bot's own writable drive
-  // stopped: resolves when the bot is asked to stop, by cli bot <name> --end
+module.exports = async function (drive, { on, log }) {
+  // drive: the bot's own drive, which index.js can write to
+  // on('exit'): resolves when the bot is asked to stop, by cli bot <name> --end
   // log(line): prints the line in every terminal attached with --run --attach,
   //   and stores it in the bot's log, which `cli bot <name> --log` prints
-  await stopped
+  await on('exit')
 }
 ```
 
-Instead of waiting for `stopped`, the entry can return a function. It is called once the bot
-is asked to stop.
+Instead of waiting, the function can call `on('exit', listener)` and return straight away.
+The bot keeps running, and `listener` is called and awaited once the bot is asked to stop. If
+it does both, the code after `await on('exit')` runs first and the listener after it. If it
+does neither, the bot ends as soon as the function returns. `exit` is the only event.
 
 Rules:
 
@@ -77,7 +79,7 @@ does not open the drive storage, so it works even while another process has that
 | `see(name)` | `cli bot <name>` | Returns `{ name, drive, package, output, logged, running }`: the bot's drive reference, the package name its drive is registered under (or `null`), the address of the output drive that `--build` writes into (it has an address before the first build), how many lines its log holds, and whether the bot is running. Throws for an unknown name. |
 | `create(name, spec)` | `cli bot +<name> <specifier>` | Make a new bot. `spec` is one of: a drive that already contains `bot.json`; a generator in a drive (`<drive>/generate`), for which the cli writes `bot.json`; an absolute path to a local folder that contains `bot.json`; or an absolute path to a local generator file that writes `bot.json`. Every form except a plain drive makes a new drive, also kept as a package with the same name. Refused if `name` is already a bot, or already a package when a new drive is made; if there is no valid `bot.json`; or if the drive already belongs to another bot. Returns the bot's drive reference. |
 | `build(name)` | `cli bot <name> --build` | If the code drive has a `setup.js`, runs it inside a microVM and saves what it writes into the output drive. Returns the text to print: what `setup.js` printed followed by `Built: <reference>`, or `Already built: <reference>` on a second build, or `Nothing to build` without a `setup.js`. Refused while the bot runs. |
-| `run(name, print)` | `cli bot <name> --run` | Loads the entry and calls it, in this process. Writes `run/<name>.pid`, calls `print` with each line the bot logs and stores that line in its log. Each time the bot writes to its drive, the reference in `bots.json` and in the packages list moves to the new revision. Returns `{ done, stop }`: `stop()` asks the bot to stop, and `done` settles with `see(name)` once it has. Refused if the bot is already running. |
+| `run(name, print)` | `cli bot <name> --run` | Loads the bot's `index.js` and calls its function, in this process. Writes `run/<name>.pid`, calls `print` with each line the bot logs and stores that line in its log. Each time the bot writes to its drive, the reference in `bots.json` and in the packages list moves to the new revision. Returns `{ done, stop }`: `stop()` asks the bot to stop, and `done` settles with `see(name)` once it has. Refused if the bot is already running. |
 | `end(name)` | `cli bot <name> --end` | Stops the bot. If this process runs it, it is stopped directly; otherwise the process in `run/<name>.pid` is sent SIGTERM, and `end` waits up to 30 seconds for it to stop. Does nothing if the bot is not running. |
 | `log(name, count)` | `cli bot <name> --log`, `--log=<count>` | Everything the bot has logged, oldest first, across every run, one line each; with `count`, only the newest `count` lines. It opens the drive storage, so from the cli it is read by the daemon, which already has the storage open; that is why it works while the bot runs. |
 | `drop(name)` | `cli bot -<name>` | Deletes the bot, its log and audit cores, and the package its drive is registered as, if there is one, with that drive's data. The code drive is kept. Refused while the bot runs. |

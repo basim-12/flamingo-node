@@ -152,10 +152,11 @@ one prepared image under Docker, started and stopped.
 | `down()` | stop bitcoind and the lightning nodes cleanly, then take the node down, waiting for each so nothing is killed mid write |
 
 So there are two sandboxes for now, because the prepared image still has a user. `run` is the
-one that takes any drive, and `open` below is what a bot's entry gets: `cli bot <name> --run`
-hands the entry a handle and nothing else, so the entry can only act through the sandbox.
+one that takes any drive, and `open` below is what a bot's `index.js` gets:
+`cli bot <name> --run` hands `index.js` a handle and nothing else, so it can only act through
+the sandbox.
 
-### A sandbox a drive's own script drives
+### A sandbox that a bot's `index.js` drives
 
 `run` decides everything up front: one command, and the sandbox is gone once it finishes.
 `open` boots the same sandbox with nothing running in it and hands back a handle.
@@ -180,19 +181,19 @@ what was granted before the script ran, so the script chooses what runs inside a
 the sandbox may reach, and it has no way to ask for a second one. Stopping is ours: a script
 does not end the thing it is running in.
 
-This is what makes a JS runtime inside unnecessary. The script runs out here under Bare where
+This is what makes a JS runtime inside unnecessary. `index.js` runs out here under Bare where
 it resolves nothing, and anything it wants done inside is an `msb` command. `bare` is not in
 the base image and does not need to be.
 
-Every call is an entry on the audit core, so the core reads as the sandbox opening, each
+Every call is a message on the audit core, so the core reads as the sandbox opening, each
 command and file in order, and the end.
 
 The sandbox is not booted until the handle is used, so a bot that never touches it never starts
 one and does not need msb installed at all. That is the same reasoning as the output drive: a
 run that has no use for something should not pay for it.
 
-flamingo's own entry has not been ported to this yet. It still requires `bare-fs` and spawns
-flamingo's CLI on the host, which the rule above refuses, so its bot does not run. The node
+flamingo's own `index.js` has not been ported to this yet. It still requires `bare-fs` and
+spawns flamingo's CLI on the host, which the rule above refuses, so its bot does not run. The node
 image does build inside a sandbox, so the port is possible; what it needs first is the build
 moved into `setup.js` with the image landing in the output drive, because a sandbox is fresh
 every run and rebuilding a 951MB image on each start is not an option.
@@ -224,15 +225,15 @@ feed of messages and an addressable drive, and the paths in the first point into
 ## Identity, and resuming
 
 Every bot has an **audit core**, one across all of its runs rather than one per run. A run
-and an end are both entries in it, so the core reads as when the bot started, when it
+and an end are both messages in it, so the core reads as when the bot started, when it
 stopped, and what it was given in between. The sandbox's id is derived from the core, so the
 core is both the record of what a run was allowed and the handle to find it again.
 
-An entry is `{ head, refs, type, data, meta }`:
+A message is `{ head, refs, type, data, meta }`:
 
 | | |
 | --- | --- |
-| `head` | `['datashell', sandbox, began]`, where `began` is the index of the run entry, so an end pairs with its own beginning |
+| `head` | `['datashell', sandbox, began]`, where `began` is the index of the run message, so an end pairs with its own beginning |
 | `refs` | the addresses it was given: `drive`, `mount`, `output` |
 | `type` | `run` or `end` |
 | `data` | what the run was started with, or how it ended |

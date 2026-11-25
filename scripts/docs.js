@@ -29,8 +29,8 @@ const sample = path.join(home, 'sample')
 let export_count = 0
 let code_link = ''
 
-// A code package of our own: a generator that writes config.json, and an entry that
-// saves a file, waits to be stopped, and says so on the way in and out.
+// A code package of our own: a generator that writes config.json, and an index.js that
+// saves a file, waits for on('exit'), and says so on the way in and out.
 fs.mkdirSync(sample)
 fs.writeFileSync(path.join(sample, 'generate.js'), [
   'module.exports = async function (drive, options) {',
@@ -38,10 +38,10 @@ fs.writeFileSync(path.join(sample, 'generate.js'), [
   '}'
 ].join('\n') + '\n')
 fs.writeFileSync(path.join(sample, 'index.js'), [
-  'module.exports = async function (drive, { stopped, log }) {',
+  'module.exports = async function (drive, { on, log }) {',
   "  await drive.put('/data.txt', Buffer.from('saved while running'))",
   "  log('sample started')",
-  '  await stopped',
+  "  await on('exit')",
   "  log('sample stopping')",
   '}'
 ].join('\n') + '\n')
@@ -195,7 +195,7 @@ test('generator specifiers run a file from a drive', async t => {
   }
 })
 
-// Generators and entries run straight from their drive: bare-module's Loader reads
+// Generators and a bot's index.js run straight from their drive: bare-module's Loader reads
 // every file through the drive, so nothing is copied to disk first. A dynamic
 // import() would load code around the Loader, so it is refused.
 test('drive code runs straight from the drive; dynamic import() is refused', async t => {
@@ -273,7 +273,7 @@ test('bot <name> --run starts it in the background; --end stops it', async t => 
 // the log can be read while the bot is still running.
 test('bot <name> --log is what the bot logged, run after run', async t => {
   const first = await cli('bot', 'alice', '--log')
-  t.ok(first.out.includes('sample started'), 'what the entry logged')
+  t.ok(first.out.includes('sample started'), 'what index.js logged')
   t.ok(first.out.includes('sample stopping'), 'including its clean shutdown')
   t.absent(fs.existsSync(path.join(home, storage, 'run', 'alice.log')), 'no log file anywhere')
 
@@ -453,6 +453,35 @@ test('tasks module: start a bot, let it save, stop it', async t => {
   t.is(pkgs.get('hello'), seen.drive, 'package moved with it')
   const folder = await pkgs.export('hello', path.join(home, 'tasks-api-export'))
   t.is(fs.readFileSync(path.join(folder, 'data.txt'), 'utf8'), 'saved while running')
+  await bots.close()
+  await pkgs.close()
+})
+
+// index.js can also hand on('exit') a listener and return straight away. The bot then
+// keeps running, and the listener runs when the bot is asked to stop, before it ends.
+test("on('exit', listener) keeps a bot running and runs the listener at the end", async t => {
+  const code = path.join(home, 'listener-code')
+  fs.mkdirSync(code)
+  fs.writeFileSync(path.join(code, 'index.js'), [
+    'module.exports = async function (drive, { on, log }) {',
+    "  on('exit', async () => { await drive.put('/goodbye.txt', Buffer.from('cleaned up')); log('listener ran') })",
+    "  log('returned straight away')",
+    '}'
+  ].join('\n') + '\n')
+  fs.writeFileSync(path.join(code, 'generate.js'), 'module.exports = async function () {}\n')
+  const pkgs = await packs(path.join(home, 'listener-api'))
+  const bots = await tasks(pkgs)
+  await pkgs.create('listener-code', code)
+  await bots.create('ivy', 'listener-code/generate')
+
+  const { done } = await bots.run('ivy', () => {})
+  t.ok(await until(async () => (await bots.log('ivy')).includes('returned straight away')), 'index.js returned')
+  t.ok((await bots.see('ivy')).running, 'and the bot is still running')
+  await bots.end('ivy')
+  await done
+  t.ok((await bots.log('ivy')).endsWith('listener ran'), 'the listener ran when it was stopped')
+  const folder = await pkgs.export('ivy', path.join(home, 'listener-export'))
+  t.is(fs.readFileSync(path.join(folder, 'goodbye.txt'), 'utf8'), 'cleaned up', 'and what it saved is kept')
   await bots.close()
   await pkgs.close()
 })

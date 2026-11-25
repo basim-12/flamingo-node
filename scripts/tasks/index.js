@@ -125,13 +125,13 @@ async function tasks (pkgs) {
     if (!registry[name]) throw new Error(`Unknown bot: ${name}`)
     if (busy(registry[name])) throw new Error('This bot is already running')
     const opened = await pkgs.open_drive(registry[name], false)
-    let entry
-    // the entry reaches the handle through require('sandbox'), so it is made first
+    let loaded
+    // index.js reaches the handle through require('sandbox'), so it is made first
     let box
     try {
       const link = await config(opened.drive)
       box = lazy({ drive: opened.drive, audit: await pkgs.core('audit', name) })
-      entry = await pkgs.load({ link, ...reference(link) }, box.handle)
+      loaded = await pkgs.load({ link, ...reference(link) }, box.handle)
     } catch (err) {
       if (box) await box.stop()
       await opened.close()
@@ -151,7 +151,13 @@ async function tasks (pkgs) {
     }
 
     let stop
-    const stopped = new Promise(resolve => { stop = resolve })
+    const exit = new Promise(resolve => { stop = resolve })
+    const listeners = []
+    const on = (event, listener) => {
+      if (event !== 'exit') throw new Error(`A bot has one event, exit, not ${event}`)
+      if (listener) listeners.push(listener)
+      return exit
+    }
     const active = { stop, done: null }
     running.set(name, active)
 
@@ -166,10 +172,11 @@ async function tasks (pkgs) {
 
     active.done = (async () => {
       try {
-        const cleanup = await entry.fn(opened.drive, { stopped, log: record })
-        if (typeof cleanup === 'function') {
-          await stopped
-          await cleanup()
+        await loaded.fn(opened.drive, { on, log: record })
+        // index.js returned, but a bot that set exit listeners keeps running until it is stopped
+        if (listeners.length) {
+          await exit
+          for (const listener of listeners) await listener()
         }
       } catch (err) {
         append('Error: ' + err.message)

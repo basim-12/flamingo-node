@@ -236,12 +236,12 @@ the code's side that is what happened: it asked for nothing, so nothing was put 
 Cannot find module 'bare-fs'
 ```
 
-Both of those are a generator. A bot's entry gets neither, because neither would be true of it:
-an entry may require the builtins and `sandbox` whatever is declared and whatever is granted, so
-it is told that instead.
+Both of those are a generator. A bot's `index.js` gets neither, because neither would be true
+of it: it may require the builtins and `sandbox` whatever is declared and whatever is granted,
+so it is told that instead.
 
 ```
-An entry may require the builtins and sandbox, so bare-fs is not there
+A bot's index.js may require only the builtins and sandbox, so bare-fs is not there
 ```
 
 ## What a drive declares

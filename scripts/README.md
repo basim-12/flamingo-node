@@ -110,8 +110,8 @@ whatever the bot saves; each application chooses its own folder structure.
 
 `bot.json` contains the information the CLI needs to launch the application. When
 a bot is created from a generator in a drive, the CLI writes it: the pinned reference of the
-drive the generator came from, plus `/index.js`. So a code drive keeps its entry in
-`index.js`.
+drive the generator came from, plus `/index.js`. So a code drive keeps the code a bot runs
+in `index.js`.
 
 ```json
 {
@@ -119,21 +119,28 @@ drive the generator came from, plus `/index.js`. So a code drive keeps its entry
 }
 ```
 
-Other application settings and persistent data belong in the bot's drive. The entry
-exports an async function receiving the writable drive and a lifecycle context:
+Other application settings and persistent data belong in the bot's drive. `index.js`
+exports one async function. When the bot runs, it is called with the bot's drive and two
+functions:
 
 ```js
-module.exports = async function (drive, { stopped, log }) {
+module.exports = async function (drive, { on, log }) {
   log('Started')
   // Read configuration and save changes with drive.get()/drive.put().
-  await stopped // resolved by cli bot <name> --end; finish cleanup before returning
+  await on('exit') // resolves on cli bot <name> --end; finish cleanup before returning
 }
 ```
 
-`drive` is the bot's own drive, writable. `stopped` resolves on `cli bot <name> --end`.
-`log(line)` prints the line in every terminal attached to the bot and appends it to its log core. An
-entry may instead return a cleanup
-function, which the CLI awaits after `stopped`.
+- `drive` is the bot's own drive, and `index.js` can write to it.
+- `await on('exit')` waits until the bot is asked to stop with `cli bot <name> --end`.
+- `on('exit', listener)` is the other way to wait. If `index.js` sets a listener, its
+  function can return straight away: the bot keeps running, and once it is asked to stop,
+  the listener runs and is awaited. `exit` is the only event.
+- `log(line)` prints the line in every terminal attached to the bot, and stores it in the
+  bot's log.
+
+If the function neither waits for `exit` nor sets a listener, the bot ends as soon as the
+function returns.
 
 `cli bot <name> --run` starts the bot and returns once it is running. The bot keeps
 running after the command and the terminal have gone, because it runs inside the daemon
@@ -163,11 +170,12 @@ automatically.
 
 What a drive's code may require, and it depends on which code.
 
-A bot's **entry** may require the builtins and `sandbox`, and nothing else at all. It is written
-by anyone, it runs out here rather than inside the sandbox, and it runs unattended on every
-start, so it is given no way to reach this machine: the builtins compute and touch nothing, and
-`sandbox` is a handle on a microVM built from what was granted before the entry ran. Granting it
-something makes no difference, and it is told the rule rather than that it was not granted.
+A bot's **`index.js`** may require the builtins and `sandbox`, and nothing else at all. It is
+written by anyone, it runs out here rather than inside the sandbox, and it runs unattended on
+every start, so it is given no way to reach this machine: the builtins compute and touch
+nothing, and `sandbox` is a handle on a microVM built from what was granted before `index.js`
+ran. Granting it something makes no difference, and it is told the rule rather than that it was
+not granted.
 
 A **generator** keeps the older rule: the builtins, plus what its `package.json` declares and
 has been granted, where declaring is not the same as being granted. It runs once, when someone

@@ -135,7 +135,7 @@ async function packs (root = STORAGE) {
     } catch (err) { await drive.close(); throw err }
   }
 
-  // Load the function a generator or entry file exports, reading the code straight
+  // Load the function a generator or a bot's index.js exports, reading the code straight
   // from its drive at the pinned revision (or from its local folder); nothing is
   // copied to disk. `code` is the drive's pinned reference.
   async function load (from, sandbox) {
@@ -155,9 +155,9 @@ async function packs (root = STORAGE) {
     }
     try {
       if (!(await drive.entry(file)) && await drive.entry(file + '.js')) file += '.js'
-      if (!(await drive.entry(file))) throw new Error(`Generator/entry file not found in the drive: ${from.file}`)
+      if (!(await drive.entry(file))) throw new Error(`File not found in the drive: ${from.file}`)
       const fn = await run_from(drive, file, Boolean(from.local), sandbox)
-      if (typeof fn !== 'function') throw new Error('Entry must export a function')
+      if (typeof fn !== 'function') throw new Error(`${file} must export a function`)
       return { fn, code }
     } finally { await close() }
   }
@@ -243,12 +243,13 @@ async function packs (root = STORAGE) {
 
   // What code in a drive may require.
   //
-  // An entry, which is what gets a sandbox, may require the builtins and `sandbox` and nothing
-  // else at all. It is written by anyone, it runs out here rather than inside the sandbox, and
-  // it runs on every start with nobody watching, so it is given no way to reach this machine:
-  // the builtins only compute and hand over no power, and `sandbox` is a handle on a microVM
-  // built from what was granted before the entry ran, so the entry decides what happens in
-  // there and never what it may reach. Declaring a dependency does not change any of that.
+  // A bot's index.js, which is what gets a sandbox, may require the builtins and `sandbox` and
+  // nothing else at all. It is written by anyone, it runs out here rather than inside the
+  // sandbox, and it runs on every start with nobody watching, so it is given no way to reach
+  // this machine: the builtins only compute and hand over no power, and `sandbox` is a handle
+  // on a microVM built from what was granted before index.js ran, so index.js decides what
+  // happens in there and never what it may reach. Declaring a dependency does not change any
+  // of that.
   //
   // A generator keeps the older rule, declared and granted, because it runs once, when someone
   // types the specifier that names it, and filling a drive is all it is for. That it can still
@@ -288,9 +289,9 @@ function validate_cjs (source, url, provided, allows, strict) {
       if (node.callee.name !== 'require') return
       const [arg] = node.arguments
       if (arg?.type !== 'Literal' || /^\.{0,2}\//.test(arg.value) || arg.value in provided) return
-      // An entry is told the rule rather than that it was not granted, because granting
+      // A bot's index.js is told the rule rather than that it was not granted, because granting
       // would not help: nothing but the builtins and the handle reaches it either way.
-      if (strict) throw new Error(`An entry may require the builtins and sandbox, so ${arg.value} is not there`)
+      if (strict) throw new Error(`A bot's index.js may require only the builtins and sandbox, so ${arg.value} is not there`)
       // Otherwise undeclared reads as missing, because from the code's side it is: the drive
       // never asked for it, so nothing was ever put there.
       throw new Error(allows(arg.value)

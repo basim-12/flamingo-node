@@ -63,7 +63,7 @@ const unhook = hook('use a throwaway home folder')
 // Only the two generators need grants now. `bip39-mnemonic` is for the one in the drive, which
 // writes the wallet; `bare-fs` and `bare-process` are for `lib/build.js`, which is a local file
 // the user points at and so keeps the older rule. `bare-subprocess` and `bare-ws` were granted
-// for the entry, and an entry gets the builtins and `sandbox` whatever is granted, so they are
+// for index.js, and a bot's index.js gets the builtins and `sandbox` whatever is granted, so they are
 // gone from here.
 test('grant a flamingo bot what its generators require', async t => {
   for (const cap of ['bip39-mnemonic', 'bare-fs', 'bare-process']) {
@@ -88,7 +88,7 @@ test('fw up --shutdown says so when no node has been started', async t => {
 })
 
 // lib/drive is Flamingo's code package for the bot cli: a generator that makes an
-// identity, and an entry that runs the node with it. lib/build.js assembles the drive,
+// identity, and an index.js that runs the node with it. lib/build.js assembles the drive,
 // so the Docker setup comes from the pinned flamingo-docker dependency as installed,
 // never from copies kept in this repo.
 test('the flamingo drive carries the code and the pinned docker dependency', async t => {
@@ -125,17 +125,17 @@ test('each bot gets its own identity', async t => {
   t.not(read_json(path.join(alice, 'wallet.json')).mnemonic, read_json(path.join(bob, 'wallet.json')).mnemonic)
 })
 
-// The entry's job is to run the node, not to make an identity. A bot drive without
+// index.js's job is to run the node, not to make an identity. A bot's drive without
 // wallet.json stops with an error before anything touches Docker.
 // (--attach runs it in this terminal, so the error shows up right here.)
-// The entry has not been ported to the sandbox handle yet, so it does not run: it still
-// requires `bare-fs` on its first line, and an entry no longer gets that. This test says so
-// rather than leaving it looking like a fault, and it goes when the entry is ported.
+// index.js has not been ported to the sandbox handle yet, so it does not run: it still
+// requires `bare-fs` on its first line, and a bot's index.js no longer gets that. This test
+// says so rather than leaving it looking like a fault, and it goes when index.js is ported.
 //
 // The node image does build inside a sandbox, so the port is possible. What it needs is the
 // build moved into `setup.js` with the image landing in the output drive, because a sandbox is
 // fresh every run and rebuilding it each time is not an option.
-test('a flamingo bot does not run until its entry is ported', async t => {
+test('a flamingo bot does not run until its index.js is ported', async t => {
   const folder = path.join(home, 'empty-config')
   fs.mkdirSync(folder)
   fs.writeFileSync(path.join(folder, 'bot.json'), JSON.stringify({ run: code_link + '/index.js' }))
@@ -144,7 +144,7 @@ test('a flamingo bot does not run until its entry is ported', async t => {
 
   const result = await cli('bot', 'carol', '--run', '--attach')
   t.is(result.code, 1)
-  t.is(result.err, 'An entry may require the builtins and sandbox, so bare-fs is not there', 'says which rule it broke')
+  t.is(result.err, "A bot's index.js may require only the builtins and sandbox, so bare-fs is not there", 'says which rule it broke')
   t.ok((await cli('bot', 'carol')).out.includes('Status: stopped'), 'not left running')
 })
 

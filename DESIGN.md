@@ -52,7 +52,7 @@ The first `fw up` makes two things and keeps them, because both are pinned once 
 - the code package `flamingo-node`, assembled by `lib/build.js`
 - a bot named `flamingo`, generated from that package
 
-`lib/build.js` copies `lib/drive` — the generator, the entry and their `package.json` —
+`lib/build.js` copies `lib/drive` — `generate.js`, `index.js` and their `package.json` —
 plus the installed `flamingo-docker` dependency, read out of `node_modules` at the commit
 `package.json` pins. The drive carries what the node needs without this repository keeping
 copies of it.
@@ -61,7 +61,7 @@ The generator writes `wallet.json`: a fresh 12-word BIP39 mnemonic from `bip39-m
 Every generated bot drive gets its own, so two bots are two identities. The CLI then adds
 `bot.json` pointing at the package's pinned `index.js`.
 
-On `--run` the entry reads `wallet.json`, and stops with an error if the drive has none. It
+On `--run` the bot's `index.js` reads `wallet.json`, and stops with an error if the drive has none. It
 starts the node with `fw up` and, once the backend accepts connections, sends
 `initialize_node_wallet` one `recover` request with the stored mnemonic over `bare-ws`, so
 node4 always comes up as this bot's identity. On stop it runs `fw up --shutdown`. The bot
