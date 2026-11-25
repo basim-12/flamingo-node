@@ -1,7 +1,5 @@
 const { spawn } = require('child_process')
 
-// Run a command and return what it printed. Promise around spawn rather than exec,
-// because bare-subprocess has no exec and this has to work under Bare too.
 function capture (cmd, args, { timeout = 0 } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
@@ -22,7 +20,6 @@ function capture (cmd, args, { timeout = 0 } = {}) {
   })
 }
 
-// The same, but the command prints straight to this terminal.
 function inherit (cmd, args) {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, { stdio: 'inherit' })

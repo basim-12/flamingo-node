@@ -14,7 +14,6 @@ const capabilities = require('../cap')
 const { import_folder, export_folder } = require('../mirror')
 const { read_json, write_json, uuid } = require('../json')
 
-// Everything the CLI keeps lives here, named once so it can be moved.
 const STORAGE = path.join(os.homedir(), '.ds')
 const LINK = /^dat:\/\/(\d+)\.(\d+)\.([a-z0-9]+)\.([a-f0-9]{64})(\/[^?]*)?(?:\?(.*))?$/
 
@@ -31,8 +30,7 @@ async function packs (root = STORAGE) {
   const caps = await capabilities(root)
   return { root, caps, close, list, get, find, info, source, open_drive, load, core, disk, create, update, drop, export: export_files }
 
-  // The shared store, opened the first time a drive is touched. Reading names never
-  // opens it, so inspecting works while a running bot holds its lock.
+  // opened the first time a function needs a drive: README.md#api
   async function drives () {
     if (corestore === null) {
       corestore = new Corestore(path.join(root, 'corestore'))
@@ -52,8 +50,6 @@ async function packs (root = STORAGE) {
     return (await drives()).namespace(namespace).get({ name })
   }
 
-  // A hyperdrive in its own namespace, for drives datashell keeps rather than registers.
-  // The same name reopens the same drive, so what was built is found again by name.
   async function disk (namespace, name) {
     const drive = new Hyperdrive((await drives()).namespace(namespace).namespace(name))
     await drive.ready()
@@ -73,7 +69,6 @@ async function packs (root = STORAGE) {
     return registry[name]
   }
 
-  // The package name registered for the drive behind `link`, if there is one.
   function find (link) {
     const { id } = reference(link)
     return list().find(name => reference(registry[name]).id === id)
@@ -84,9 +79,7 @@ async function packs (root = STORAGE) {
     return `Name: ${name}\nDrive: ${registry[name]}`
   }
 
-  // Resolve a <specifier>: a local folder or file (`./x`, `../x`, `/x`), a dat://
-  // reference, a package name or a drive id, each optionally followed by /<file> to
-  // run a generator. A path says so, so the forms never overlap.
+  // ../README.md#specifiers
   async function source (spec) {
     const q = spec.indexOf('?')
     const base = q < 0 ? spec : spec.slice(0, q)
@@ -118,8 +111,6 @@ async function packs (root = STORAGE) {
     throw new Error(`Unknown package or source: ${base}`)
   }
 
-  // Open the drive behind `link`. Pinned: a read-only view at exactly that revision,
-  // with its hash checked. Not pinned: the live drive.
   async function open_drive (link, pinned = true) {
     const ref = reference(link)
     const store = await drives()
@@ -135,9 +126,6 @@ async function packs (root = STORAGE) {
     } catch (err) { await drive.close(); throw err }
   }
 
-  // Load the function a generator or a bot's index.js exports, reading the code straight
-  // from its drive at the pinned revision (or from its local folder); nothing is
-  // copied to disk. `code` is the drive's pinned reference.
   async function load (from, sandbox) {
     let drive
     let file
@@ -162,9 +150,6 @@ async function packs (root = STORAGE) {
     } finally { await close() }
   }
 
-  // Make a new named drive from a <specifier>: copy a folder or drive, or run a
-  // generator into it. `prepare(drive, code)` runs after that and before the drive
-  // is registered; `code` is the generator's pinned drive reference, if any.
   async function create (name, spec, { namespace = 'pkg', prepare } = {}) {
     if (registry[name]) throw new Error(`Package already exists: ${name}`)
     const from = await source(spec)
@@ -194,7 +179,6 @@ async function packs (root = STORAGE) {
     } finally { await drive.close() }
   }
 
-  // Point every package on this drive at its latest saved revision.
   async function update (drive) {
     const link = await drive_link(drive)
     for (const name of list()) if (reference(registry[name]).id === drive.id) registry[name] = link
@@ -221,8 +205,7 @@ async function packs (root = STORAGE) {
     return real
   }
 
-  // Evaluate a module graph read straight from drive with bare module's Loader.
-  // Every file goes through the drive. What it may require comes in as builtins.
+  // README.md#code-loaded-from-drives
   async function run_from (drive, file, own, sandbox) {
     const provided = await modules_for(drive, own, sandbox)
     const protocol = new Module.Protocol({
@@ -241,7 +224,7 @@ async function packs (root = STORAGE) {
     return loader.import(new URL('drive://' + file))
   }
 
-  // which code gets which modules: cap/README.md#which-code-gets-what
+  // which code gets which modules: ../cap/README.md#which-code-gets-what
   // `own` is true for a generator run from a local file
   async function modules_for (drive, own, sandbox) {
     const provided = {}
@@ -261,9 +244,7 @@ async function packs (root = STORAGE) {
   }
 }
 
-// A dynamic import() would load code around the Loader, so drive code may not use it.
-// A require of something it does not have is caught here too: the Loader would otherwise
-// go looking for it in the drive and fail without ever naming it.
+// README.md#code-loaded-from-drives, and the messages in ../cap/README.md#what-a-refused-require-says
 function validate_cjs (source, url, provided, allows, strict) {
   const ast = acorn.parse(source, { ecmaVersion: 'latest', sourceType: 'script' })
   walk.simple(ast, {
@@ -274,11 +255,7 @@ function validate_cjs (source, url, provided, allows, strict) {
       if (node.callee.name !== 'require') return
       const [arg] = node.arguments
       if (arg?.type !== 'Literal' || /^\.{0,2}\//.test(arg.value) || arg.value in provided) return
-      // A bot's index.js is told the rule rather than that it was not granted, because granting
-      // would not help: nothing but the builtins and the handle reaches it either way.
       if (strict) throw new Error(`A bot's index.js may require only the builtins and sandbox, so ${arg.value} is not there`)
-      // Otherwise undeclared reads as missing, because from the code's side it is: the drive
-      // never asked for it, so nothing was ever put there.
       throw new Error(allows(arg.value)
         ? `Cannot find module '${arg.value}'`
         : `This drive requires ${arg.value}, which it was not granted`)
@@ -311,7 +288,6 @@ async function known (store, id) {
   return true
 }
 
-// Delete a drive's data: the files it holds and the metadata that lists them.
 async function purge (drive) {
   await drive.ready()
   const blobs = await drive.getBlobs()

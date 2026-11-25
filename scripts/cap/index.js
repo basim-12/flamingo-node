@@ -1,8 +1,7 @@
 const path = require('bare-path')
 const { read_json, write_json } = require('../json')
 
-// Pure computation, so there is nothing to grant and nothing to ask: every drive has these.
-// Anything else a drive requires reaches outside itself, and has to be granted first.
+// README.md#builtins-and-caps
 const BUILTINS = ['bare-path', 'bare-url', 'bare-crypto']
 
 module.exports = caps
@@ -27,7 +26,6 @@ async function caps (root) {
     return `Name: ${name}\nKind: cap\nGranted: ${name in granted ? 'yes' : 'no'}`
   }
 
-  // Both groups at once: what every drive has, and what has been granted on top.
   function expand () {
     const names = list()
     const indent = name => '  ' + name

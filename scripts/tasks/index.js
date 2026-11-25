@@ -2,8 +2,8 @@ const fs = require('bare-fs')
 const fsp = require('bare-fs/promises')
 const path = require('bare-path')
 const process = require('bare-process')
-const crypto = require('bare-crypto')
 const { reference, drive_link } = require('../packs')
+const { read_json, write_json } = require('../json')
 const { run: sandbox, lazy } = require('../sandbox/run')
 
 module.exports = tasks
@@ -270,22 +270,4 @@ function alive (pid) {
   } catch {
     return false
   }
-}
-
-async function read_json (file) {
-  try {
-    return JSON.parse(await fsp.readFile(file, 'utf8'))
-  } catch (err) {
-    if (err.code === 'ENOENT') return {}
-    throw err
-  }
-}
-
-// a crash never leaves half a registry
-async function write_json (file, data) {
-  const temp = file + '.' + crypto.randomBytes(16).toString('hex')
-  try {
-    await fsp.writeFile(temp, JSON.stringify(data, null, 2) + '\n', { mode: 0o600, flag: 'wx' })
-    await fsp.rename(temp, file)
-  } finally { await fsp.rm(temp, { force: true }) }
 }

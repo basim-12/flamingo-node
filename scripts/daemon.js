@@ -6,10 +6,7 @@ const runtime = require('./runtime')
 const { describe } = require('./tasks')
 const { open, send, receive } = require('./socket')
 
-// One daemon per storage root. It owns the drive storage and runs the bots, so a command
-// never takes the lock for itself and a running bot's log is still readable. The first
-// command that needs it starts it (see remote.js), and it exits once nothing is left to
-// do: no command connected and no bot running.
+// DESIGN.md#the-daemon
 main()
 
 async function main () {
@@ -31,7 +28,7 @@ async function main () {
   const server = createServer(socket => {
     clients.add(socket)
     socket.on('error', () => socket.destroy()) // a command killed mid write must not take the daemon with it
-    // bare-pipe reports the far end going away as `end`, and leaves our half open.
+    // bare-pipe reports the far end going away as `end`, and leaves this end open
     socket.on('end', () => {
       socket.end()
       clients.delete(socket)
@@ -45,8 +42,6 @@ async function main () {
   server.listen(socket_path)
   fs.writeFileSync(pidfile, JSON.stringify({ pid: process.pid }) + '\n', { mode: 0o600 })
 
-  // Everything the api has, by name. `run` and `attach` are the exceptions: they start a
-  // bot here and keep it, and attach also streams what it logs back to the command.
   async function serve (socket, { id, kind, action, args = [] }) {
     try {
       if (action === 'attach' && running.has(args[0])) return await watch(socket, id, args[0])
@@ -57,8 +52,6 @@ async function main () {
     }
   }
 
-  // Every command attached to the bot is a watcher: it gets each line the bot logs, and its
-  // result once the bot ends. A command that only ran it gets the bot's state straight away.
   async function run (socket, id, attach, name) {
     const watchers = new Map(attach ? [[socket, id]] : [])
     const active = await ds.bot.run(name, line => { for (const [watcher, at] of watchers) send(watcher, { id: at, line }) })

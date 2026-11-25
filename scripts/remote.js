@@ -7,9 +7,7 @@ const { open, send, receive } = require('./socket')
 
 module.exports = remote
 
-// The same api as runtime.js, but over the daemon that owns the storage (daemon.js), so
-// commands no longer take the drive storage lock for themselves and a running bot's log
-// can be read. The daemon is started here if it is not up yet.
+// DESIGN.md#the-daemon
 async function remote (root = packs.STORAGE) {
   await fsp.mkdir(root, { recursive: true, mode: 0o700 })
   const socket = await connect(root)
@@ -36,7 +34,6 @@ async function remote (root = packs.STORAGE) {
     })
   }
 
-  // The same names runtime.js has, each one a call to the daemon.
   const namespace = (kind, actions) =>
     Object.fromEntries(actions.map(action => [action, (...args) => call(kind, action, args)]))
 

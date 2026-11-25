@@ -32,7 +32,6 @@ async function main () {
   }
 }
 
-// Turn the arguments into { kind, action, name, source }, resolving the aliases.
 function parse (args) {
   const [kind, raw, option, ...flags] = args
   const attach = option === '--run' && flags[0] === '--attach'
@@ -61,7 +60,6 @@ function parse (args) {
   throw new Error(usage)
 }
 
-// Call the runtime function the command asks for, and return what to print.
 async function command (ds, { kind, action, name, source, count }, cwd) {
   if (kind === 'cap') {
     if (action === 'list') return await listing(await ds.cap.list(), ds.cap.info) || 'Nothing granted.'
@@ -104,13 +102,11 @@ async function command (ds, { kind, action, name, source, count }, cwd) {
   return see(name)
 }
 
-// The daemon has a working directory of its own, so a relative path is made absolute here,
-// against the directory the command was typed in.
+// the daemon has a working directory of its own, so paths are made absolute here
 function absolute (spec, cwd) {
   return /^\.{1,2}\//.test(spec) ? path.resolve(cwd, spec) : spec
 }
 
-// every name, as the same block the single name command prints
 async function listing (names, show) {
   return (await Promise.all(names.map(show))).join('\n\n')
 }

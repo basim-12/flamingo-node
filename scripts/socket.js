@@ -1,6 +1,6 @@
 const { createConnection } = require('bare-pipe')
 
-// How a command and the daemon talk: a unix socket, one JSON message per line.
+// DESIGN.md#the-daemon
 
 function open (path) {
   return new Promise((resolve, reject) => {

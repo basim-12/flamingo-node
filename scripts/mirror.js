@@ -3,9 +3,6 @@ const path = require('bare-path')
 const Localdrive = require('localdrive')
 const MirrorDrive = require('mirror-drive')
 
-// A drive and a local folder, copied either way. A package's contents come in this way and
-// go out again, and it is also how a drive's files get somewhere a sandbox can mount them.
-
 // MirrorDrive copies bytes; the metadata hooks keep empty folders and permissions.
 async function import_folder (drive, folder) {
   const metadata = new Map()

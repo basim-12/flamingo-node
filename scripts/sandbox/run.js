@@ -4,7 +4,7 @@ const path = require('bare-path')
 const { capture } = require('./exec')
 const { import_folder, export_folder } = require('../mirror')
 
-// The installer puts msb here and does not touch PATH, so this is where we look for it.
+// the installer puts msb here and does not add it to PATH
 const MSB = path.join(os.homedir(), '.microsandbox', 'bin', 'msb')
 
 // every sandbox uses this one image, pinned by digest so it is the same image every time
@@ -22,9 +22,7 @@ async function run (opts) {
     stop: () => box.stop()
   }
 
-  // Settles when the code inside finishes, whether it stopped on its own or stop was
-  // called. What it printed is the result, and what it wrote is in the output drive by
-  // then. The sandbox and its folder are removed even if collecting that fails.
+  // the sandbox and its folder are removed even if copying /out fails
   async function wait () {
     await capture(MSB, ['wait', box.name])
     try {
@@ -87,9 +85,8 @@ async function open (opts) {
   }
 }
 
-// The same handle, but the sandbox behind it is not booted until something is asked of it, so
-// a bot that never touches it never pays for one and never needs msb installed at all. The
-// promise is kept rather than the box, so two calls at once share the one sandbox.
+// README.md#open-a-sandbox-that-a-bots-indexjs-uses. The promise is kept, not the box, so two
+// calls at once share one sandbox.
 function lazy (opts) {
   let booting = null
   const ready = () => (booting = booting || open(opts)).then(box => box.handle)
@@ -100,9 +97,6 @@ function lazy (opts) {
   }
 }
 
-// Everything both of them need: msb present, the audit core open, a work folder with the
-// drive and its mounts exported into it, and the create arguments that follow from the
-// caps. Nothing here starts anything.
 async function provision ({ drive, mount = [], output, caps = {}, audit }) {
   await need_msb()
   await audit.ready()
@@ -122,8 +116,7 @@ async function provision ({ drive, mount = [], output, caps = {}, audit }) {
   if (output) await fsp.mkdir(out, { mode: 0o700 })
   await export_folder(drive, app)
 
-  // Each drive it may read, under the id of the drive it came from, so code inside can tell
-  // them apart.
+  // under each drive's id, so code inside can tell them apart
   const mounted = []
   for (const [index, each] of mount.entries()) {
     const folder = path.join(work, String(index))
@@ -151,8 +144,7 @@ async function provision ({ drive, mount = [], output, caps = {}, audit }) {
         meta: { time: Date.now() }
       })))
     },
-    // Only ever called because something asked for it: nothing else stops a sandbox
-    // early, so the end message records it as asked for.
+    // nothing else stops a sandbox early, so the end message records that it was asked to
     stop () {
       stopped = true
       return capture(MSB, ['stop', name])
@@ -168,8 +160,7 @@ async function provision ({ drive, mount = [], output, caps = {}, audit }) {
   }
 }
 
-// Nothing is allowed unless a cap says so. A published port needs ingress and --no-net
-// closes ingress as well as egress, so a port with no outbound access denies egress only.
+// README.md#caps-the-network. --no-net also closes ingress, so a published port denies egress only
 function network ({ net, ports = [] }) {
   const published = ports.flatMap(port => ['-p', port])
   if (net) return ['--net-default', 'deny', ...net.flatMap(rule => ['--net-rule', rule]), ...published]
@@ -177,7 +168,7 @@ function network ({ net, ports = [] }) {
   return ['--no-net']
 }
 
-// Nothing here works without it, and a failed spawn would not say what to install.
+// a failed spawn would not say what to install
 async function need_msb () {
   try {
     await fsp.stat(MSB)

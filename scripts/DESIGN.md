@@ -28,7 +28,8 @@ read.
 | --- | --- |
 | [runtime.js](runtime.js) | The api over [packs](packs/README.md), [tasks](tasks/README.md) and [cap](cap/README.md), in one process. The daemon runs this |
 | [daemon.js](daemon.js) | Owns the storage, runs the bots, and serves the api on `ds.sock` |
-| [remote.js](remote.js) | The same api, over the socket. `cli` and flamingo's `fw` use this |
+| [remote.js](remote.js) | The same api, over the socket. `cli` and flamingo's `fw` use this. It starts the daemon if it is not up |
+| [socket.js](socket.js) | How a command and the daemon talk: one JSON message per line |
 
 Over the socket one call differs: `bot.run(name)` starts the bot inside the daemon and returns
 `see(name)` as soon as it runs. `bot.attach(name, print)` is the one that stays: it returns
@@ -52,6 +53,9 @@ next one checks whether anything still answers there before it takes over.
 ├── ds.pid          # the daemon's pid, while it is up
 └── run/            # <bot-name>.pid while that bot runs
 ```
+
+`pkgs.json`, `bots.json` and `grants.json` are each written to a temporary file and then
+renamed into place ([json.js](json.js)), so a crash never leaves half a file behind.
 
 | Namespace in `corestore/` | What is in it |
 | --- | --- |
