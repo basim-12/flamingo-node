@@ -22,6 +22,39 @@ absolute yourself, against the folder you mean, because this module can run in a
 process with a working directory of its own. That is what the cli does: the module runs
 inside the daemon, so the cli makes each path absolute before it sends the command.
 
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `cli pkg +<name> <specifier>`, or `cli pkg <name> --import=<specifier>` | Make a new drive and fill it from the [specifier](../README.md#specifiers): copy a folder or a drive, or run a generator into it. The new drive has its own id, even when the specifier names a drive that is already here. Refused if `<name>` is taken or the specifier names nothing. |
+| `cli pkg <name>`, or `--see` after it | Print `Name:` and `Drive:`. |
+| `cli pkg` | Print that block for every package, or `No pkgs.` |
+| `cli pkg <name> <dirpath>`, or `--export=<dirpath>` | Copy the package's latest files into `<dirpath>`, which must not exist yet; its parent must. Only the files are copied, not the drive's history or id. |
+| `cli pkg -<name>` | Delete the package and its drive's data. Folders it was imported from or exported to are kept. If the package is a bot's drive, the bot is deleted with it, and this is refused while that bot runs. |
+
+A folder is copied with its files, its empty folders and its permission bits. A symlink or
+any other special file in it is refused with `Unsupported filesystem entry`.
+
+## Generators
+
+A generator is a js file that exports one async function. `cli pkg +<name> <generator>` makes
+a new drive and calls the function with it:
+
+```js
+module.exports = async function (drive, options) {
+  await drive.put('/config.json', Buffer.from(JSON.stringify(options)))
+}
+```
+
+- `drive` is the new, empty drive.
+- `options` holds the `?key=value` pairs from the specifier, as strings:
+  `my-app/generate?ask=no` gives `{ ask: 'no' }`.
+- The package is registered only once the function returns. If it throws, the new drive is
+  deleted.
+- What a generator may require is in [cap](../cap/README.md#which-code-gets-what).
+- For a bot made from a generator in a drive, the cli adds `bot.json` once the generator
+  returns ([tasks](../tasks/README.md)).
+
 ## Drive references
 
 Every package is recorded as a full reference to one exact revision:
@@ -74,10 +107,10 @@ while another process has the storage open; a function that needs a drive then f
 | `open_drive(link, pinned = true)` | Open the drive behind `link`, after checking the revision's hash. Returns `{ drive, view, ref, close }`. `view` is what to read from: with `pinned`, a read-only copy of exactly that revision; without it, the live drive itself. `ref` is `link` parsed by `packs.reference`. |
 | `core(namespace, name)` | Returns a hypercore (an append-only list of records) stored under `namespace` and `name`, for data kept beside a drive rather than in it, such as a log. The same two names reopen the same core. Opens the drive storage. |
 | `load(from)` | Load the function a generator or a bot's `index.js` exports, from a `source()` result. The code is read straight from the drive at its pinned revision (or from its local folder); nothing is copied to disk. Returns `{ fn, code }`, where `code` is the drive's pinned reference. |
-| `create(name, spec, { namespace, prepare })` | `cli pkg +<name> <specifier>`. Make a new package from a `<specifier>`: copy a folder or drive, or run a generator into a new drive. `namespace` is where in the storage the new drive is made, `pkg` unless given; tasks passes `bot`. `prepare(drive, code)` runs after that, before the package is registered, and `code` is the generator's pinned drive reference, or `null` when nothing was generated. Returns the new package's drive reference. |
+| `create(name, spec, { namespace, prepare })` | `cli pkg +<name> <specifier>`. A local path in `spec` has to be absolute. `namespace` is where in the storage the new drive is made, `pkg` unless given; tasks passes `bot`. `prepare(drive, code)` runs after that, before the package is registered, and `code` is the generator's pinned drive reference, or `null` when nothing was generated. Returns the new package's drive reference. |
 | `update(drive)` | Moves every package on `drive` to the drive's latest revision in `pkgs.json`. Returns that revision's reference. |
-| `drop(name)` | `cli pkg -<name>`. Delete the package's drive data, and every package name registered for that drive. Throws for an unknown name. |
-| `export(name, dirpath)` | `cli pkg <name> <dirpath>`. Copy the package's latest files into `dirpath`, a new folder outside the storage folder (`~/.ds`, or the root passed to `packs()`). `dirpath` has to be absolute, its parent has to exist and it must not exist yet. Returns the folder's real path. |
+| `drop(name)` | `cli pkg -<name>`. Deletes the package's drive data and every package name registered for that drive. Throws for an unknown name. It does not touch bots: the cli deletes a bot on that drive first, through [tasks](../tasks/README.md). |
+| `export(name, dirpath)` | `cli pkg <name> <dirpath>`. `dirpath` has to be absolute, and outside the storage folder (`~/.ds`, or the root passed to `packs()`). Returns the folder's real path. |
 
 ### Helpers on the module
 

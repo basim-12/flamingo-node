@@ -59,10 +59,6 @@ starts the node with `fw up --node` and, once the backend accepts connections, s
 `initialize_node_wallet` one `recover` request with the stored mnemonic over `bare-ws`, so
 node4 comes up as this bot's identity. On stop it runs `fw up --node --shutdown`.
 
-That file requires `bare-fs`, `bare-process`, `bare-subprocess` and `bare-ws`, and a bot's
-`index.js` may require only the builtins and `sandbox`, so `cli bot flamingo --run` is refused
-before any of it runs.
-
 Making one by hand rather than letting `fw up` do it is three commands:
 
 ```sh

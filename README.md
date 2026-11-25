@@ -26,13 +26,6 @@ fw up --shutdown         # stop it
 
 `fw up` is the whole lifecycle. There is no separate `start`, `stop` or `down`.
 
-**`fw up` and `fw up --attach` do not start the node.** They run it as a datashell bot, and
-the bot's `lib/drive/index.js` requires `bare-fs`, which a bot's `index.js` may not require.
-They stop with `A bot's index.js may require only the builtins and sandbox, so bare-fs is not
-there`. In a new `~/.ds` they stop one step earlier, with
-`This drive requires bare-fs, which it was not granted`, until `bare-fs`, `bare-process` and
-`bip39-mnemonic` are granted with `npx cli cap +<name>`.
-
 A background `fw up` returns as soon as the node is running, and what the node prints goes
 to its log rather than to your terminal. `fw up --attach` shows that output here as it
 happens. Ctrl+C stops watching and leaves the node running; `fw up --shutdown` stops it.

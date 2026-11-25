@@ -55,8 +55,7 @@ command's exit code. `cli bot <name> --build` therefore runs
 | `{ net: ['allow@dns', 'allow@example.com:tcp:443'] }` | `--net-default deny` and one `--net-rule` each | only what the rules allow |
 | `{ ports: ['8080:8080'] }` | `--net-default-egress deny -p 8080:8080` | nothing outbound; the host reaches port 8080 inside |
 
-`cli bot <name> --build` and a bot's sandbox are both given `{}`, so neither has a network:
-a `setup.js` that looks up a hostname fails with `ENOTFOUND`.
+`cli bot <name> --build` and a bot's sandbox are both given `{}`, so neither has a network.
 
 ## `open`: a sandbox that a bot's `index.js` uses
 

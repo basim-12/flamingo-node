@@ -1,256 +1,120 @@
-# Hyperdrive packages and bots
+# datashell
 
-A CLI for named drives (`pkg`) and the bots that run from them (`bot`). It is installed as
-the `cli` command, and in a clone `npx cli` is the same thing; the examples below write it
-as `cli`:
+The `cli` command: named drives (`cli pkg`), bots that run from them (`cli bot`), and the
+modules drive code may require (`cli cap`). In a clone of this repository it is `npx cli`.
 
-```sh
-npx cli pkg
-```
-
-[STATUS.md](STATUS.md) is the short version of this file: every command that works, one
-example each, and what is agreed but not built yet. It is updated at the end of each
-worklog.
-
-`cli.js` forwards the command line to Bare using the runtime npm installed, so `bare` does
-not have to be on PATH.
-
-This folder is its own package, named `datashell`, so what depends on it says so rather than
-reaching into a sibling folder. A dependent installs it with `npm install ./scripts --save`
-and requires `datashell` and nothing inside it: `index.js` is the whole surface, so which file
-a thing lives in stays datashell's business.
-
-`commands.js` only reads the command line and calls the two modules it is built on:
-[packs](packs/README.md) for drives and their names, and [tasks](tasks/README.md)
-for bots running from them.
-
-## Drive references
-
-```text
-dat://<length>.<fork>.<id>.<hash>
-```
-
-References identify an exact drive revision. Code runs straight from that revision
-(read through the drive, never copied to disk) after its hash is verified. A bot's code reference stays pinned, its
-own drive reference advances as data is saved. The hash is the lowercase hex
-Hypercore tree hash at the specified length; the ID is z-base-32. Referenced
-drives and file data must already be available locally in this iteration.
+Each section lists every command in one line, and links to the module readme that explains
+it in full. 📦 marks a command that works.
 
 ## Packages
 
-The `pkg` commands are a thin layer over the `packs` module; its API is in
+A package is a name for a drive. A drive is addressed by its public key, which stays the
+same when its files change; only the `dat://` reference, which also names one revision,
+moves on. The key is a long string, so the name is what you type. In full:
 [packs/README.md](packs/README.md).
 
-| Command | Action and behavior |
-| --- | --- |
-| `cli pkg +<name> <specifier>` | Create a named drive from contents or a generator. Reject existing names and missing sources. |
-| `cli pkg <name> --import=<specifier>` | Same as creation above. |
-| `cli pkg <name>` / `cli pkg <name> --see` | Show the package name and drive reference. |
-| `cli pkg` | List named drives. |
-| `cli pkg --help` / `cli bot --help` | Print usage. |
-| `cli pkg <name> <dirpath>` / `cli pkg <name> --export=<dirpath>` | Export the latest stored contents to a new folder. Reject an existing destination; its parent must exist. Export files, not drive history or identity. |
-| `cli pkg -<name>` | Remove the registration and purge local drive data. Preserve import/export folders and unrelated drives. Refuse if the package belongs to a running bot. |
-
-## Specifiers
-
-`cli pkg +<name> <specifier>` and `cli bot +<name> <specifier>` both take any of these.
-One difference for bots: a bot needs a `bot.json`, the file that says what code it runs.
-When the generator is in a drive, the cli writes `bot.json` itself, pointing at that drive.
-A local folder or a local generator file is not in a drive, so the folder must already
-contain a `bot.json`, or the generator must write one.
-
-| Specifier | Action |
-| --- | --- |
-| Local directory (`./dir`, `../dir`, `/dir`) | Copy its contents. |
-| Local file (`./file`, `../file`, `/file`) | Execute it as a generator. |
-| `dat://<length>.<fork>.<id>.<hash>` | Copy the referenced revision's contents. |
-| `dat://<length>.<fork>.<id>.<hash>/generate?ask=no` | Execute the referenced generator. |
-| Package name | Copy the package's contents. |
-| `package-name/filepath` | Execute a generator from that package. |
-| Drive id (`disk.id`) | Copy the contents of that locally known drive. |
-| `drive-id/filepath` | Execute a generator from that locally known drive. |
-
-Folder copies preserve files, empty directories and permission bits; symlinks and
-special files are rejected. Named packages, drive ids and `dat://` revisions must
-already be available locally. A known package name or the id of a registered
-drive resolves to its recorded revision; an unregistered drive id resolves to its
-latest local revision. Either way `cli` stores the full
-`dat://length.fork.id.hash` reference.
-
-## Generators
-
-A generator exports one async function receiving the new Hyperdrive and options:
-
-```js
-module.exports = async function (drive, options) {
-  // Write the app's initial data to drive.
-}
-```
-
-Query parameters become options, for example `?ask=no`. The generator can prompt
-for input or run automatically. Registration happens after it finishes filling
-the drive; failed initialization is cleaned up. Values in `options` are strings.
-A path is recognised by its `./`, `../` or `/` start, so a bare name is always a
-package or a drive id; `.js` may be omitted from a generator path within a package.
-
-A generator only writes the app's own data. When a bot is created from a
-generator, the CLI adds `bot.json` itself (see Bots).
+| Command | What it does | |
+| --- | --- | --- |
+| `cli pkg` | List every package | 📦 |
+| `cli pkg +<name> <specifier>` | Make a new package from a folder, a drive, or a generator | 📦 |
+| `cli pkg <name> --import=<specifier>` | The same, written as one flag | 📦 |
+| `cli pkg <name>`, or `--see` after it | Its name and its drive's `dat://` reference | 📦 |
+| `cli pkg <name> <dirpath>` | Copy its files into a new folder | 📦 |
+| `cli pkg <name> --export=<dirpath>` | The same, written as one flag | 📦 |
+| `cli pkg -<name>` | Delete it and its drive's data | 📦 |
 
 ```sh
-cli pkg +config "my-app/generate?ask=no"
+cli pkg +demo ./demo
+# Name: demo
+# Drive: dat://3.0.8enyhokhcquxofnzbr1n7dgkktbmmzy5i8x7go1x4gjb8f58qfyy.b81d8037…
 ```
 
 ## Bots
 
-The `bot` commands are a thin layer over the `tasks` module, which is built on
-`packs`; its API is in [tasks/README.md](tasks/README.md).
+A bot runs code from a package, and can be stopped and started again. It keeps what it
+saves in a drive of its own, so two bots made from one package are two separate things. In
+full: [tasks/README.md](tasks/README.md).
 
-The code drive contains the application. The bot's drive holds its `bot.json` and
-whatever the bot saves; each application chooses its own folder structure.
-
-`bot.json` contains the information the CLI needs to launch the application. When
-a bot is created from a generator in a drive, the CLI writes it: the pinned reference of the
-drive the generator came from, plus `/index.js`. So a code drive keeps the code a bot runs
-in `index.js`.
-
-```json
-{
-  "run": "dat://<length>.<fork>.<id>.<hash>/index.js"
-}
-```
-
-Other application settings and persistent data belong in the bot's drive. `index.js`
-exports one async function. When the bot runs, it is called with the bot's drive and two
-functions:
-
-```js
-module.exports = async function (drive, { on, log }) {
-  log('Started')
-  // Read configuration and save changes with drive.get()/drive.put().
-  await on('exit') // resolves on cli bot <name> --end; finish cleanup before returning
-}
-```
-
-- `drive` is the bot's own drive, and `index.js` can write to it.
-- `await on('exit')` waits until the bot is asked to stop with `cli bot <name> --end`.
-- `on('exit', listener)` is the other way to wait. If `index.js` sets a listener, its
-  function can return straight away: the bot keeps running, and once it is asked to stop,
-  the listener runs and is awaited. `exit` is the only event.
-- `log(line)` prints the line in every terminal attached to the bot, and stores it in the
-  bot's log.
-
-If the function neither waits for `exit` nor sets a listener, the bot ends as soon as the
-function returns.
-
-`cli bot <name> --run` starts the bot and returns once it is running. The bot keeps
-running after the command and the terminal have gone, because it runs inside the daemon
-(see below), not inside the command. Everything it logs is appended to a hypercore of its
-own, kept in the shared Corestore, which it reopens and adds to on every run; there is no
-log file. `cli bot <name> --log` prints it, oldest first, and works while the bot is still
-running. `cli bot <name> --run --attach` also shows each line in this terminal as the bot
-logs it; if the bot is already running, it shows that run instead of starting a new one.
-Ctrl+C there stops watching, not the bot: the bot keeps running in the daemon, and only
-`cli bot <name> --end` stops it. Bots only start when you run them; nothing starts them
-automatically.
-
-| Command | Action and behavior |
-| --- | --- |
-| `cli bot +<name> <specifier>` | Make a new bot, stopped. A drive (package name, drive id or `dat://` reference) becomes the bot's drive as it is, and must already contain `bot.json`. A generator in a drive (`<drive>/generate`) fills a new drive, and the cli writes its `bot.json`. A local folder is copied into a new drive, and must contain `bot.json`. A local generator file fills a new drive, and must write `bot.json`. A new drive is also kept as a package named `<name>`. Refused if `<name>` is already a bot, or already a package when a new drive is made; if there is no valid `bot.json`; or if the drive already belongs to another bot. |
-| `cli bot <name>` / `cli bot <name> --see` | Show its drive reference, package name if available, the address of the drive its builds land in, how many lines its log holds, and running/stopped status. The output drive is listed before anything has been built into it, because its address does not change. |
-| `cli bot` | List registered bots. |
-| `cli bot <name> --run` | Verify and launch the file `bot.json`'s `run` names in the background, and return once it runs. Reuse existing bot data and identity. A bot is a singleton: refuse if it, or another bot on the same drive, is already running. |
-| `cli bot <name> --run --attach` | Start the bot if it is not running, and show what it logs in this terminal until it stops. Ctrl+C stops watching and leaves the bot running. |
-| `cli bot <name> --end` | Stop the bot cleanly and preserve its data. The only command that stops a bot. |
-| `cli bot <name> --log` | Print everything the bot has logged, across every run, oldest first. Works while the bot runs. |
-| `cli bot <name> --log=<count>` | Print only the newest `<count>` lines. `cli bot <name>` says how many there are. |
-| `cli bot <name> --build` | Prepare what the bot needs without running it. A drive says how by holding a `setup.js`, which is optional: without one there is nothing to prepare, and the bot runs against the base image as it comes. The script runs in a sandbox and what it writes becomes a drive of its own, whose reference the bot's drive keeps, so building again has nothing left to do. Refused while the bot runs. |
-| `cli bot -<name>` | Refuse while running. Otherwise remove the bot and purge its associated bot package/data, preserving the code package and unrelated data. |
-
-## Capabilities
-
-What a drive's code may require, and it depends on which code.
-
-A bot's **`index.js`** may require the builtins and `sandbox`, and nothing else, whatever is
-granted. The builtins only compute, and `sandbox` is a handle on a microVM with no network.
-
-A **generator** may require the builtins, plus each module its `package.json` lists that has
-also been granted. Listing a module does not grant it.
-
-The model is [cap](cap/README.md), and the handle is in [sandbox](sandbox/README.md).
-
-| Command | Behavior |
-| --- | --- |
-| `cli cap` | List what is granted. |
-| `cli cap --expand` | The builtins as well, which need no grant. |
-| `cli cap <name>` | Whether it is a builtin or a cap, and whether it is granted. |
-| `cli cap +<name>` | Grant it, and remember the answer. |
-| `cli cap -<name>` | Revoke it everywhere. |
-
-Generator shortcut and lifecycle:
+| Command | What it does | |
+| --- | --- | --- |
+| `cli bot` | List every bot | 📦 |
+| `cli bot +<name> <specifier>` | Make a new bot. Its drive must end up with a `bot.json` | 📦 |
+| `cli bot <name>`, or `--see` after it | Its drive, package, output drive, log length, and whether it runs | 📦 |
+| `cli bot <name> --build` | Run the code drive's `setup.js` in a sandbox, into the output drive | 📦 |
+| `cli bot <name> --run` | Start it in the background | 📦 |
+| `cli bot <name> --run --attach` | Watch it in this terminal, starting it first if needed. Ctrl+C stops watching, not the bot | 📦 |
+| `cli bot <name> --log` | Everything it has logged, across every run | 📦 |
+| `cli bot <name> --log=<count>` | Only its newest `<count>` lines | 📦 |
+| `cli bot <name> --end` | Stop it. Nothing else stops a bot | 📦 |
+| `cli bot -<name>` | Delete it, its drive, and its log and audit cores | 📦 |
 
 ```sh
-cli bot +demo "my-app/generate?ask=no"
-cli bot demo --see
-cli bot demo --run      # returns once the bot is running in the background
-cli bot demo            # Status: running
-cli bot demo --end
-cli bot demo --log      # what it logged, this run and every earlier one
-cli bot -demo
+cli bot +mybot demo/generate
+# Name: mybot
+# Drive: dat://2.0.wrueczrc91su5jpaaa58sh98x1dqy6ogam4s98nssxaj59qt7ioo.df2721aa…
+# Package: mybot
+# Output: dat://0.0.y4qhrwwa75m3rtixyjuwcmfenoytep1kuej8fnqc18rr641swpsy.bb30a42c…
+# Log: 0 lines
+# Status: stopped
+
+cli bot mybot --run
+# … the same block, with Status: running
+# Running in the background. Its log: cli bot mybot --log
 ```
 
-## Sandboxing and capabilities
+## Caps
 
-A drive can say which JS modules its code needs, and the loader provides them (see
-Generators). Where that code is allowed to run, and what else it may be granted, is the
-subject of two modules:
+Three modules, the builtins, only compute, so any drive's code may require them without a
+grant. Every other module is a cap, and code gets it only once it is granted. In full:
+[cap/README.md](cap/README.md).
 
-| | |
-| --- | --- |
-| [`sandbox`](sandbox/README.md) | where code from a drive runs, so it reaches only what it was granted. Docker today, microsandbox next. |
-| [`cap`](cap/README.md) | what a drive may ask for, how it is granted and remembered, and `cli cap`. |
+| Command | What it does | |
+| --- | --- | --- |
+| `cli cap` | List what is granted | 📦 |
+| `cli cap --expand` | List the builtins and what is granted | 📦 |
+| `cli cap <name>` | Whether it is a builtin or a cap, and whether it is granted | 📦 |
+| `cli cap +<name>` | Grant it | 📦 |
+| `cli cap -<name>` | Revoke it, for every drive | 📦 |
 
-Both are written down before they are built, so the model can be argued with first. What
-exists today is `run`, which takes any drive, and an older module beside it that starts and
-stops one prepared image; the rest is design.
-
-## The daemon
-
-One daemon per storage root owns the drive storage and runs the bots in it. Every command
-talks to it over a unix socket (`ds.sock`) rather than opening the storage itself, so two
-commands can work at the same time and a running bot locks nothing out: a package can be
-made while a bot runs, and a running bot's log can be read.
-
-The first command that needs it starts it, and it exits once nothing is left to do, meaning
-no command connected and no bot running. While it is up, `ds.pid` holds its pid. A daemon
-that crashed leaves its socket behind; the next one checks whether anything still answers
-there before taking over.
-
-Three files, one api:
-
-| File | What it is |
-| --- | --- |
-| [`runtime.js`](runtime.js) | The api over `packs` and `tasks`, in one process. What the daemon runs. |
-| [`daemon.js`](daemon.js) | Owns the storage, runs the bots, serves that api on the socket. |
-| [`remote.js`](remote.js) | The same api, over the daemon. What `cli` and `fw` use. One difference: `bot.run(name)` starts the bot inside the daemon and returns `see(name)` as soon as it is running. To keep a bot in this terminal, `bot.attach(name, print)` takes the place of `run(name, print)`: it returns `{ done }` and calls `print` with each line the bot logs, attaching to the bot's current run if it is already running. |
-
-Because the bots run inside the daemon, they stop when it does. It stays up for as long as
-any of them is running.
-
-## Storage and shared behavior
-
-```text
-~/.ds/
-├── pkgs.json       # { "<package-name>": "dat://...", ... }
-├── bots.json       # { "<bot-name>": "dat://...", ... }
-├── grants.json     # { "<capability-name>": true, ... } what drive code may require
-├── corestore/      # Shared persistent drive storage, and each bot's log core
-├── ds.sock         # where the daemon listens
-├── ds.pid          # the daemon's pid, while it is up
-└── run/            # <bot-name>.pid while it runs
+```sh
+cli cap --expand
+# Builtins, every drive has these:
+#   bare-path
+#   bare-url
+#   bare-crypto
+#
+# Granted:
+#   bare-fs
 ```
 
-- Use `pkg` / package-name and `bot` / bot-name Corestore namespaces.
-- Persist registrations and drive contents across CLI runs; keep registry access replaceable by Datashell.
-- Names use letters, numbers, underscores and hyphens, starting with a letter or number.
-- Local paths resolve from the current working directory. Import/export are one off copies.
-- Data written through the bot Hyperdrive is saved locally during operation.
+## Specifiers
+
+`cli pkg +<name> <specifier>` and `cli bot +<name> <specifier>` take three kinds of
+specifier. Each kind either copies, or, with a file path after it, runs that file as a
+generator into the new drive:
+
+| Kind | Copies | Runs a generator |
+| --- | --- | --- |
+| a local path | a folder: `./demo` | a file: `./lib/build.js` |
+| a `dat://` reference | `dat://3.0.8eny….b81d…` | `dat://3.0.8eny….b81d…/generate` |
+| a name: a package name or a drive id | `demo`, or `8enyhokh…qfyy` | `demo/generate`, or `8enyhokh…qfyy/generate` |
+
+- **A local path** starts with `./`, `../` or `/`, so a plain name is never a folder.
+- **A `dat://` reference** names one exact revision, and its hash is checked.
+- **A package name** stands for the revision the package records. **A drive id** of a
+  registered package does the same; the id of any other drive here stands for that drive's
+  latest revision on this machine.
+- Every drive named must already be on this machine.
+- `?key=value` after a generator path becomes its options, for example
+  `demo/generate?ask=no`, and `.js` may be left off the file name.
+
+A bot also needs a `bot.json`, the file that says what code it runs. For a generator in a
+drive, the cli writes it. A local folder must already contain one, and a local generator file
+must write one.
+
+## Names and paths
+
+- A name uses letters, numbers, underscores and hyphens, and starts with a letter or a number.
+- A relative path is resolved against the folder the command was typed in.
+
+How the cli, the daemon and the storage fit together is in [DESIGN.md](DESIGN.md).
