@@ -4,7 +4,8 @@ The `cli` command: named drives (`cli pkg`), bots that run from them (`cli bot`)
 modules drive code may require (`cli cap`). In a clone of this repository it is `npx cli`.
 
 Each section lists every command in one line, and links to the module readme that explains
-it in full. 📦 marks a command that works.
+it in full. 📦 marks a command that works. The words these readmes use are explained in
+[GLOSSARY.md](GLOSSARY.md).
 
 ## Packages
 
