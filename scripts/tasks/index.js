@@ -168,7 +168,7 @@ async function tasks (pkgs) {
     const pidfile = path.join(run_dir, name + '.pid')
     await fsp.mkdir(run_dir, { recursive: true, mode: 0o700 })
     await fsp.writeFile(pidfile, JSON.stringify({ pid: process.pid, started: Date.now() }) + '\n', { mode: 0o600 })
-    record(describe(await see(name)))
+    print(describe(await see(name)))
 
     active.done = (async () => {
       try {

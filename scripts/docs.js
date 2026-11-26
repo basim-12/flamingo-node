@@ -291,7 +291,8 @@ test('bot <name> --log is what the bot logged, run after run', async t => {
 // newest ones, so a long log can be read from its end.
 test('bot <name> shows the log length; --log=<count> prints the newest lines', async t => {
   const length = Number((await cli('bot', 'alice')).out.match(/^Log: (\d+) lines$/m)[1])
-  t.ok(length > 2, 'the length of the log')
+  t.is(length, 4, 'two runs of the sample, two lines each')
+  t.absent((await cli('bot', 'alice', '--log')).out.includes('Status:'), 'the status block is printed, not logged')
   t.is((await cli('bot', 'alice', '--log=1')).out, 'sample stopping', 'only the newest line')
   t.is((await cli('bot', 'alice', '--log=' + length)).out, (await cli('bot', 'alice', '--log')).out, 'all of them')
   t.is((await cli('bot', 'alice', '--log=0')).code, 1, 'a count is at least 1')

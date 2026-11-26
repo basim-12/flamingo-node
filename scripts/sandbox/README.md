@@ -109,7 +109,8 @@ A message is `{ head, refs, type, data, meta }`:
 ## The prepared image
 
 `require('datashell').sandbox` is a second, older module ([index.js](index.js)). It runs one
-prepared image under Docker, and flamingo's `lib/flamingo.js` starts its node with it.
+prepared image under Docker. flamingo's `lib/flamingo.js` uses it to start its Docker
+container.
 
 | | |
 | --- | --- |

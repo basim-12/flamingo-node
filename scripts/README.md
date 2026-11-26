@@ -110,8 +110,8 @@ generator into the new drive:
   `demo/generate?ask=no`, and `.js` may be left off the file name.
 
 A bot also needs a `bot.json`, the file that says what code it runs. For a generator in a
-drive, the cli writes it. A local folder must already contain one, and a local generator file
-must write one.
+drive, the cli writes it, pointing at `index.js` in that same drive. A local folder must
+already contain one, and a local generator file must write one.
 
 ## Names and paths
 

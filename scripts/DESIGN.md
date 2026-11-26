@@ -33,8 +33,8 @@ read.
 
 Over the socket one call differs: `bot.run(name)` starts the bot inside the daemon and returns
 `see(name)` as soon as it runs. `bot.attach(name, print)` is the one that stays: it returns
-`{ done }` and calls `print` with each line the bot logs, from the bot's current run if it is
-already running.
+`{ done }` and calls `print` with the `cli bot <name>` block, then with each line the bot logs,
+from the bot's current run if it is already running.
 
 The first command that needs the daemon starts it. While it is up, `ds.pid` holds its pid. It
 exits once no command is connected and no bot is running, and because the bots run inside it,
