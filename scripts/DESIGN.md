@@ -41,6 +41,29 @@ exits once no command is connected and no bot is running, and because the bots r
 it stays up for as long as one of them runs. A daemon that crashed leaves `ds.sock` behind; the
 next one checks whether anything still answers there before it takes over.
 
+## What runs where
+
+The javascript from a drive never runs inside the microVM. A bot's `index.js` and a generator
+run in the daemon, on Bare, and can only `require` what we hand them: the builtins, the granted
+modules for a generator, and the [sandbox api](sandbox/README.md#the-api-requiresandbox) for
+`index.js` ([CODE.md](CODE.md)). So `index.js` has no power of its own, and does everything
+inside the microVM by sending it commands.
+
+The microVM is what holds everything else. Native software, like a bitcoin node, runs in there,
+and it is the microVM that keeps it away from this machine, not anything in javascript. Inside
+it, code runs as root, which is fine because the microVM contains it.
+
+A few rules follow from that:
+
+- A microVM's permissions are fixed while it runs. `index.js` cannot give it a network or mount
+  another drive. To change them, the bot is stopped and started again.
+- A bot runs the exact revision of `index.js` that its `bot.json` names, loaded once when it
+  starts ([tasks](tasks/README.md#what-a-bot-is)).
+- Every start and end of a microVM, and every api call in between, is a message on the bot's
+  audit core ([sandbox](sandbox/README.md#identity)).
+- `setup.js` is optional. Without one, `--build` prints `Nothing to build`.
+- `cli bot <name>` shows the output drive's address from the start, before the first build.
+
 ## `setup.js` and `index.js`
 
 A bot can have two files of code, and they do different jobs. `setup.js` is to the bot's
