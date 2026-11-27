@@ -20,24 +20,22 @@ There is no `cli sandbox`. The module has two parts:
 
 ## Box packs
 
-A box pack is a dependency that runs in a microVM, made with `msb`. It is used in one of two
-ways:
+A box pack is a dependency that runs in a microVM, made with `msb`. We use one in two ways:
 
 | | used by | what it does |
 | --- | --- | --- |
 | a **builder** (`mix`) | `cli bot <name> --build` | installs or builds software once, and saves the result into the bot's output drive |
 | a **driver** (`run`) | `cli bot <name> --run` | runs software in a microVM while the bot runs, and the bot's `index.js` uses that software |
 
-datashell has one box pack, this module, built in. As a builder it runs the code drive's
-`setup.js` with `run`, as `node /app/setup.js`. As a driver it gives `index.js` the api through
-`lazy`, so `index.js` reaches the software inside by running commands with it.
+We have one box pack, built in: this module. As a builder it runs the code drive's `setup.js`
+with `run`, as `node /app/setup.js`. As a driver it gives `index.js` the api through `lazy`, and
+`index.js` reaches the software inside by running commands with it.
 
-The built in box pack does not make a build reproducible. `setup.js` can do anything, so two
-bots built from the same code drive can build different files, and what is built on one
-machine may not work on a machine of another architecture. What it does fix is the image:
-every sandbox starts from the same image, pinned by its digest ([The image](#the-image)). A box
-pack that guarantees reproducible builds has to do that itself, for example by building with
-nix or guix.
+Our box pack does not make a build reproducible. `setup.js` can do anything, so two bots built
+from the same code drive can end up with different files, and a build from one machine may not
+work on a machine of another architecture. What we do fix is the image: every sandbox starts
+from the same image, pinned by its digest ([The image](#the-image)). A box pack that promises
+reproducible builds has to do that itself, for example with nix or guix.
 
 ## The api: `require('sandbox')`
 
@@ -56,7 +54,8 @@ What a bot's `index.js` gets when it calls `require('sandbox')`:
 These five are all a bot's `index.js` can do with its sandbox. It cannot stop the sandbox, give
 it a network or mount another drive.
 
-The bot's sandbox has the bot's own drive at `/app`, read only, no `/out` and no network. It is
+The bot's sandbox has the bot's own drive at `/app` and what `cli bot <name> --build` saved at
+`/out`, both read only, and no network. `/out` is empty if the bot was never built. It is
 started the first time `index.js` calls one of the five, so a bot that never uses `sandbox`
 never starts one and does not need `msb` installed. It is stopped when the bot stops.
 
@@ -99,6 +98,7 @@ sandbox.stop()          // stop it early; what it wrote so far is still copied o
 | `drive` | the drive whose files the command sees, read only, at `/app` |
 | `mount` | more drives, each read only at `/mnt/<drive id>` |
 | `output` | the drive that receives what the command writes into `/out`. Without one there is no `/out` |
+| `built` | for `open` and `lazy`: a drive whose files are at `/out`, read only, instead of `output` |
 | `caps` | what the sandbox may reach on the network, see below. `{}` unless given |
 | `command` | what to run inside, for example `['sh', '-c', 'node /app/setup.js']` |
 | `audit` | the hypercore that records the run, see Identity below |
@@ -106,7 +106,7 @@ sandbox.stop()          // stop it early; what it wrote so far is still copied o
 `done` gives what the command printed, not whether it failed: `msb wait` does not return the
 command's exit code. `cli bot <name> --build` therefore runs
 `node /app/setup.js && touch /out/.built`, and treats a missing `/out/.built` as a failure
-([tasks/index.js](../tasks/index.js#L106-L114)).
+([tasks/index.js](../tasks/index.js#L108-L116)).
 
 ### `open`: a sandbox with nothing running
 
@@ -126,16 +126,16 @@ box.stop()    // stops the sandbox, and copies /out into the output drive
 `lazy` takes the same options as `open` and returns at once, without starting anything:
 
 ```js
-const box = lazy({ drive, audit })
+const box = lazy({ drive, built, audit })
 
 box.handle    // the api; the first call opens the sandbox
 box.stop()    // stops it, if it was opened
 ```
 
-`cli bot <name> --run` calls `lazy` with the bot's own drive and its audit core, gives
-`box.handle` to `index.js` as `require('sandbox')`
-([tasks/index.js](../tasks/index.js#L133-L134)), and calls `box.stop()` when the bot stops
-([tasks/index.js](../tasks/index.js#L190)).
+`cli bot <name> --run` calls `lazy` with the bot's own drive, its output drive as `built` and its
+audit core, gives `box.handle` to `index.js` as `require('sandbox')`
+([tasks/index.js](../tasks/index.js#L137-L138)), and calls `box.stop()` when the bot stops
+([tasks/index.js](../tasks/index.js#L195)).
 
 ### `caps`: the network
 
@@ -170,7 +170,7 @@ A message is `{ head, refs, type, data, meta }`:
 | | |
 | --- | --- |
 | `head` | `['datashell', <sandbox name>, began]`, where `began` is the core's length when the run started |
-| `refs` | the ids of the drives it was given: `drive`, `mount`, `output` |
+| `refs` | the ids of the drives it was given: `drive`, `mount`, `output`, `built` |
 | `type` | `run` or `open` when it starts, `exec` for each api `run`, `start`, `put` and `get` for the others, and `end`. `logs()` is not recorded |
 | `data` | what that step was given, or how the run ended |
 | `meta` | `time`, when the message was written |

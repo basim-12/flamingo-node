@@ -41,6 +41,21 @@ exits once no command is connected and no bot is running, and because the bots r
 it stays up for as long as one of them runs. A daemon that crashed leaves `ds.sock` behind; the
 next one checks whether anything still answers there before it takes over.
 
+## `setup.js` and `index.js`
+
+A bot can have two files of code, and they do different jobs. `setup.js` is to the bot's
+sandbox what a generator is to a drive: it fills it once, before anything uses it. `index.js` is
+what runs, every time the bot starts.
+
+`cli bot <name> --build` runs `setup.js` once, with Node, as root, in a microVM. What it writes
+into `/out` is saved into the bot's output drive, and the build is never repeated: a second
+`--build` prints `Already built`. So slow work, like compiling, happens once.
+
+`cli bot <name> --run` starts `index.js`. Its sandbox has the output drive at `/out`, read
+only. `index.js` can run commands in there too, but whatever they write outside `/out` is gone
+when the bot stops, and `/out` itself it can only read. So what `setup.js` builds is kept and
+shared by every run, and `index.js` cannot change it.
+
 ## Storage
 
 ```text

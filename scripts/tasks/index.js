@@ -34,14 +34,16 @@ async function tasks (pkgs) {
   async function see (name) {
     const link = registry[name]
     if (!link) throw new Error(`Unknown bot: ${name}`)
-    const out = await output_drive(name)
+    // a running bot already has its output drive open, so that one is used
+    const active = running.get(name)
+    const out = active ? active.built : await output_drive(name)
     const core = await pkgs.core('log', name)
     await core.ready()
     try {
       return { name, drive: link, package: pkgs.find(link) || null, output: await drive_link(out), logged: core.length, running: busy(link) }
     } finally {
       await core.close()
-      await out.close()
+      if (!active) await out.close()
     }
   }
 
@@ -128,12 +130,15 @@ async function tasks (pkgs) {
     let loaded
     // index.js reaches the handle through require('sandbox'), so it is made first
     let box
+    // what --build saved, read only at /out
+    const built = await output_drive(name)
     try {
       const link = await config(opened.drive)
-      box = lazy({ drive: opened.drive, audit: await pkgs.core('audit', name) })
+      box = lazy({ drive: opened.drive, built, audit: await pkgs.core('audit', name) })
       loaded = await pkgs.load({ link, ...reference(link) }, box.handle)
     } catch (err) {
       if (box) await box.stop()
+      await built.close()
       await opened.close()
       throw err
     }
@@ -158,7 +163,7 @@ async function tasks (pkgs) {
       if (listener) listeners.push(listener)
       return exit
     }
-    const active = { stop, done: null }
+    const active = { stop, done: null, built }
     running.set(name, active)
 
     let updates = Promise.resolve()
@@ -188,6 +193,7 @@ async function tasks (pkgs) {
           await refresh(opened.drive)
         } finally {
           await box.stop()
+          await built.close()
           await appends
           await core.close()
           await fsp.rm(pidfile, { force: true })

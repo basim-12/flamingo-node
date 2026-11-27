@@ -97,7 +97,7 @@ function lazy (opts) {
   }
 }
 
-async function provision ({ drive, mount = [], output, caps = {}, audit }) {
+async function provision ({ drive, mount = [], output, built, caps = {}, audit }) {
   await need_msb()
   await audit.ready()
   // Cut short because the mount paths are built from it, and still unique to this core.
@@ -114,6 +114,7 @@ async function provision ({ drive, mount = [], output, caps = {}, audit }) {
   await fsp.rm(work, { recursive: true, force: true }) // a crashed run can leave this behind
   await fsp.mkdir(work, { recursive: true, mode: 0o700 })
   if (output) await fsp.mkdir(out, { mode: 0o700 })
+  if (built) await export_folder(built, out)
   await export_folder(drive, app)
 
   // under each drive's id, so code inside can tell them apart
@@ -133,12 +134,13 @@ async function provision ({ drive, mount = [], output, caps = {}, audit }) {
       '--mount-dir', `${app}:/app:ro`,
       ...mounted,
       ...(output ? ['--mount-dir', `${out}:/out`] : []),
+      ...(built ? ['--mount-dir', `${out}:/out:ro`] : []),
       IMAGE
     ],
     message (type, data) {
       return audit.append(Buffer.from(JSON.stringify({
         head: ['datashell', name, began],
-        refs: { drive: drive.id, mount: mount.map(each => each.id), output: output ? output.id : null },
+        refs: { drive: drive.id, mount: mount.map(each => each.id), output: output ? output.id : null, built: built ? built.id : null },
         type,
         data,
         meta: { time: Date.now() }

@@ -93,7 +93,7 @@ run, and gives `Dynamic import is disabled: drive:///<file>`.
 | --- | --- |
 | every Node module | `fs`, `child_process` and the rest, with no grant |
 | `/app` | the code drive's files, read only |
-| `/out` | writable. What `setup.js` writes there is copied into the bot's output drive |
+| `/out` | writable. What `setup.js` writes there is copied into the bot's output drive, and the bot's sandbox sees it at `/out` when it runs |
 | `process`, `__dirname`, `__filename` | as in Node: `__filename` is `/app/setup.js` |
 | the user | `root`, with `HOME` at `/root` |
 
