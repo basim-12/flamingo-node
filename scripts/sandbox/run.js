@@ -85,7 +85,7 @@ async function open (opts) {
   }
 }
 
-// README.md#open-a-sandbox-that-a-bots-indexjs-uses. The promise is kept, not the box, so two
+// README.md#lazy-open-on-first-use. The promise is kept, not the box, so two
 // calls at once share one sandbox.
 function lazy (opts) {
   let booting = null

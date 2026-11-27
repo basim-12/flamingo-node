@@ -24,7 +24,7 @@ different set of modules:
 | a generator in a drive | the builtins, plus each module its `package.json` lists under `dependencies` that has also been granted |
 | a generator run from a local file | the builtins, plus every granted cap |
 
-`sandbox` is a handle on a microVM, described in [sandbox](../sandbox/README.md). `setup.js`
+`sandbox` is the sandbox api, described in [sandbox](../sandbox/README.md#the-api-requiresandbox). `setup.js`
 is not loaded here at all: `cli bot <name> --build` runs it inside the microVM.
 Everything else each one has, with an example, is in [CODE.md](../CODE.md).
 

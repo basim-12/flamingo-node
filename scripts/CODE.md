@@ -20,7 +20,7 @@ with the bot's own drive and `{ on, log }`.
 | | |
 | --- | --- |
 | `require('bare-path')`, `require('bare-url')`, `require('bare-crypto')` | the builtins |
-| `require('sandbox')` | a microVM: `run`, `start`, `put`, `get`, `logs` ([sandbox](sandbox/README.md#open-a-sandbox-that-a-bots-indexjs-uses)) |
+| `require('sandbox')` | a microVM: `run`, `start`, `put`, `get`, `logs` ([sandbox](sandbox/README.md#the-api-requiresandbox)) |
 | `require('./other.js')` | another file in the code drive, at the top of the file or inside a function |
 | `module`, `exports` | CommonJS, as in Node |
 | `__filename` | the file's path in the drive, `/index.js` |

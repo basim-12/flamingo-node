@@ -65,6 +65,12 @@ machine's files or network.
 
 **package**: a drive with a name, made with `cli pkg +<name>`.
 
+**sandbox api**: what a bot's `index.js` gets from `require('sandbox')`: `run`, `start`, `put`,
+`get` and `logs`, on the bot's microVM.
+
+**sandbox sdk**: what datashell uses to make a microVM: `run`, `open` and `lazy` in
+`scripts/sandbox/run.js`.
+
 **`setup.js`**: an optional file in the code drive. `cli bot <name> --build` runs it once,
 inside a microVM, to prepare what the bot needs.
 
