@@ -29,9 +29,8 @@ with the bot's own drive and `{ on, log }`.
 | `Bare` | the daemon's own `Bare` object |
 
 Not there: `process`, `fetch`, `TextEncoder`, and any module other than the four above, whatever
-is granted. `require` takes a plain string only, and dynamic `import()` is refused
-([packs](packs/README.md#code-loaded-from-drives)). `require.resolve()` and `require.addon()`
-throw `UNEXPECTED_PROMISE`.
+is granted. How `require` and `import()` work is in [`require`](#require).
+`require.resolve()` and `require.addon()` throw `UNEXPECTED_PROMISE`.
 
 `console.log` prints into the daemon, which no terminal shows. `log(line)` is what the bot's log
 and `cli bot <name> --run --attach` show.
@@ -51,8 +50,8 @@ module.exports = async function (drive, { on, log }) {
 
 A generator is a file that fills a new drive. `cli pkg +<name> demo/generate` runs
 `/generate.js` from the package `demo`, and `cli pkg +<name> ./generate.js` runs a file on this
-machine ([packs](packs/README.md#generators)). It exports one async function, which datashell
-calls with the new drive and the options from the specifier.
+machine. It exports one async function, which datashell calls with the new drive and the options
+from the specifier. How to run one, with an example, is in [GENERATORS.md](GENERATORS.md).
 
 | | |
 | --- | --- |
@@ -61,11 +60,8 @@ calls with the new drive and the options from the specifier.
 | `require('./other.js')` | another file in the same drive |
 | `module`, `exports`, `__filename`, `__dirname`, the globals, `Bare` | the same as `index.js` |
 
-Not there: `process`, `fetch`, `TextEncoder`, `sandbox`. `console.log` prints into the daemon,
-which no terminal shows.
-
-`?key=value` after the file becomes the options, as strings:
-`cli pkg +out 'demo/generate?ask=no&n=2'` calls the function with `{ ask: 'no', n: '2' }`.
+Not there: `process`, `fetch`, `TextEncoder`, `sandbox`. `require` works as in
+[`require`](#require). `console.log` prints into the daemon, which no terminal shows.
 
 ```js
 module.exports = async function (drive, options) {
@@ -73,6 +69,19 @@ module.exports = async function (drive, options) {
   await drive.put('/settings.json', Buffer.from(JSON.stringify(options)))
 }
 ```
+
+## `require`
+
+For a bot's `index.js` and a generator, we read every file the code requires before it runs,
+and the files those require, into memory. So `require` returns at once.
+
+This needs the name written out, like `require('./lib/page.js')`. A name worked out while the
+code runs, like `const name = './lib/page.js'; require(name)`, works only for a module we hand
+the code, such as `bare-path`. For a file in the drive, or a module that wasn't granted, it
+throws `UNEXPECTED_PROMISE`, because reading the drive takes time and `require` can't wait.
+
+`import()` is refused, because it would load code we never checked. A file that uses it doesn't
+run, and gives `Dynamic import is disabled: drive:///<file>`.
 
 ## `setup.js`
 

@@ -92,7 +92,7 @@ cli cap --expand
 
 `cli pkg +<name> <specifier>` and `cli bot +<name> <specifier>` take three kinds of
 specifier. Each kind either copies, or, with a file path after it, runs that file as a
-generator into the new drive:
+[generator](GENERATORS.md) into the new drive:
 
 | Kind | Copies | Runs a generator |
 | --- | --- | --- |
@@ -118,5 +118,6 @@ already contain one, and a local generator file must write one.
 - A name uses letters, numbers, underscores and hyphens, and starts with a letter or a number.
 - A relative path is resolved against the folder the command was typed in.
 
-What the code in a drive can use (`index.js`, a generator, `setup.js`) is in [CODE.md](CODE.md).
+What the code in a drive can use (`index.js`, a generator, `setup.js`) is in [CODE.md](CODE.md),
+and how to write a generator is in [GENERATORS.md](GENERATORS.md).
 How the cli, the daemon and the storage fit together is in [DESIGN.md](DESIGN.md).

@@ -26,7 +26,7 @@ inside the daemon, so the cli makes each path absolute before it sends the comma
 
 | Command | What it does |
 | --- | --- |
-| `cli pkg +<name> <specifier>`, or `cli pkg <name> --import=<specifier>` | Make a new drive and fill it from the [specifier](../README.md#specifiers): copy a folder or a drive, or run a generator into it. The new drive has its own id, even when the specifier names a drive that is already here. Refused if `<name>` is taken or the specifier names nothing. |
+| `cli pkg +<name> <specifier>`, or `cli pkg <name> --import=<specifier>` | Make a new drive and fill it from the [specifier](../README.md#specifiers): copy a folder or a drive, or run a [generator](../GENERATORS.md) into it. The new drive has its own id, even when the specifier names a drive that is already here. Refused if `<name>` is taken or the specifier names nothing. |
 | `cli pkg <name>`, or `--see` after it | Print `Name:` and `Drive:`. |
 | `cli pkg` | Print that block for every package, or `No pkgs.` |
 | `cli pkg <name> <dirpath>`, or `--export=<dirpath>` | Copy the package's latest files into `<dirpath>`, which must not exist yet; its parent must. Only the files are copied, not the drive's history or id. |
@@ -37,23 +37,8 @@ any other special file in it is refused with `Unsupported filesystem entry`.
 
 ## Generators
 
-A generator is a js file that exports one async function. `cli pkg +<name> <generator>` makes
-a new drive and calls the function with it:
-
-```js
-module.exports = async function (drive, options) {
-  await drive.put('/config.json', Buffer.from(JSON.stringify(options)))
-}
-```
-
-- `drive` is the new, empty drive.
-- `options` holds the `?key=value` pairs from the specifier, as strings:
-  `my-app/generate?ask=no` gives `{ ask: 'no' }`.
-- The package is registered only once the function returns. If it throws, the new drive is
-  deleted.
-- What a generator may require is in [cap](../cap/README.md#which-code-gets-what).
-- For a bot made from a generator in a drive, the cli adds `bot.json` once the generator
-  returns ([tasks](../tasks/README.md)).
+A generator is a js file that fills a new drive. How to write and run one, with an example,
+is in [GENERATORS.md](../GENERATORS.md).
 
 ## Drive references
 
@@ -135,9 +120,5 @@ all come from the pinned revision.
   `cli cap +<name>`, and a generator run from a local file anything that has been granted.
   This process loads those modules and hands them to the Loader as `builtins`. The rules
   are in [cap](../cap/README.md).
-- **No dynamic `import()`.** It would load code around the Loader, so every `.js`
-  file is parsed with `acorn` first and refused if it uses one.
-- **Requires name their file with a plain string.** The Loader finds and reads every
-  `require('./…')` before the code runs, wherever it appears. A computed one
-  (`require(name)`) would need a synchronous read, which a drive can't answer, so
-  it fails with `UNEXPECTED_PROMISE`.
+- **`require` and `import()`.** How they work for code from a drive is in
+  [CODE.md](../CODE.md#require).
