@@ -104,9 +104,9 @@ while another process has the storage open; a function that needs a drive then f
 | Function | What it does |
 | --- | --- |
 | `source(spec)` | Resolve a `<specifier>` ([which forms there are](../README.md#specifiers)) to what it points at: `{ local, generator }` for a local folder or file, or `{ link, file }` for a drive, plus `options` from `?query`. A local path has to be absolute; `./src` is refused with `Not an absolute path: ./src`. |
-| `open_drive(link, pinned = true)` | Open the drive behind `link`, after checking the revision's hash. Returns `{ drive, view, ref, close }`. `view` is what to read from: with `pinned`, a read-only copy of exactly that revision; without it, the live drive itself. `ref` is `link` parsed by `packs.reference`. |
+| `open_drive(link, pinned = true)` | Open the drive behind `link`, after checking the revision's hash. Returns `{ drive, view, ref, close }`. `view` is what to read from: with `pinned`, a read only copy of exactly that revision; without it, the live drive itself. `ref` is `link` parsed by `packs.reference`. |
 | `disk(namespace, name)` | Returns a drive stored under `namespace` and `name`, for a drive datashell keeps without registering it as a package, such as a bot's output drive. The same two names reopen the same drive. Opens the drive storage. |
-| `core(namespace, name)` | Returns a hypercore (an append-only list of records) stored under `namespace` and `name`, for data kept beside a drive rather than in it, such as a log. The same two names reopen the same core. Opens the drive storage. |
+| `core(namespace, name)` | Returns a hypercore (an append only list of records) stored under `namespace` and `name`, for data kept beside a drive rather than in it, such as a log. The same two names reopen the same core. Opens the drive storage. |
 | `load(from)` | Load the function a generator or a bot's `index.js` exports, from a `source()` result. The code is read straight from the drive at its pinned revision (or from its local folder); nothing is copied to disk. Returns `{ fn, code }`, where `code` is the drive's pinned reference. |
 | `create(name, spec, { namespace, prepare })` | `cli pkg +<name> <specifier>`. A local path in `spec` has to be absolute. `namespace` is where in the storage the new drive is made, `pkg` unless given; tasks passes `bot`. `prepare(drive, code)` runs after that, before the package is registered, and `code` is the generator's pinned drive reference, or `null` when nothing was generated. Returns the new package's drive reference. |
 | `update(drive)` | Moves every package on `drive` to the drive's latest revision in `pkgs.json`. Returns that revision's reference. |
@@ -123,7 +123,7 @@ while another process has the storage open; a function that needs a drive then f
 ## Code loaded from drives
 
 Generators and a bot's `index.js` run in this process through `bare-module`'s `Loader`
-(bare-module 7, which needs Bare 1.32 or newer). A `Module.Protocol` reads every
+(`bare-module` 7, which needs Bare 1.32 or newer). A `Module.Protocol` reads every
 file of the module graph straight from the drive, so relative requires, JSON, and
 text files such as a Dockerfile (`require('./Dockerfile', { with: { type: 'text' } })`)
 all come from the pinned revision.

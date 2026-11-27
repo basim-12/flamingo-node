@@ -14,6 +14,9 @@ has its own.
 **`bot.json`**: a file in a bot's drive that says which code the bot runs:
 `{ "run": "dat://…/index.js" }`.
 
+**box pack**: a dependency that runs in a microVM, used as a builder by `cli bot <name> --build`
+or as a driver by `cli bot <name> --run`. datashell has one, built in: the sandbox module.
+
 **builtin**: one of three modules, `bare-path`, `bare-url` and `bare-crypto`, that the code
 in any drive may require without a grant. They only compute: they read no files and open no
 connections.
@@ -45,7 +48,7 @@ it, like `demo/generate`.
 **grant**: allowing code to require a cap, with `cli cap +<name>`. `cli cap -<name>` takes it
 back.
 
-**hypercore**: an append-only list of records. A drive is built from hypercores, and a log
+**hypercore**: an append only list of records. A drive is built from hypercores, and a log
 and an audit core are each one hypercore.
 
 **`index.js`**: the file in the code drive that a bot runs. It exports one async function,
@@ -59,7 +62,7 @@ which is called when the bot starts.
 **microVM**: a small virtual machine on this machine. Code inside it cannot reach this
 machine's files or network.
 
-**`msb`**: the command-line tool of microsandbox, which makes the microVMs.
+**`msb`**: the command line tool of microsandbox, which makes the microVMs.
 
 **output drive**: the drive `cli bot <name> --build` saves into. Every bot has its own.
 

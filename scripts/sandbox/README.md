@@ -18,6 +18,27 @@ There is no `cli sandbox`. The module has two parts:
 | the **api** | `run`, `start`, `put`, `get`, `logs` | a bot's `index.js`, through `require('sandbox')` |
 | the **sdk** | `run`, `open`, `lazy` in [run.js](run.js) | datashell: `cli bot <name> --build` and `cli bot <name> --run` |
 
+## Box packs
+
+A box pack is a dependency that runs in a microVM, made with `msb`. It is used in one of two
+ways:
+
+| | used by | what it does |
+| --- | --- | --- |
+| a **builder** (`mix`) | `cli bot <name> --build` | installs or builds software once, and saves the result into the bot's output drive |
+| a **driver** (`run`) | `cli bot <name> --run` | runs software in a microVM while the bot runs, and the bot's `index.js` uses that software |
+
+datashell has one box pack, this module, built in. As a builder it runs the code drive's
+`setup.js` with `run`, as `node /app/setup.js`. As a driver it gives `index.js` the api through
+`lazy`, so `index.js` reaches the software inside by running commands with it.
+
+The built in box pack does not make a build reproducible. `setup.js` can do anything, so two
+bots built from the same code drive can build different files, and what is built on one
+machine may not work on a machine of another architecture. What it does fix is the image:
+every sandbox starts from the same image, pinned by its digest ([The image](#the-image)). A box
+pack that guarantees reproducible builds has to do that itself, for example by building with
+nix or guix.
+
 ## The api: `require('sandbox')`
 
 What a bot's `index.js` gets when it calls `require('sandbox')`:
@@ -75,8 +96,8 @@ sandbox.stop()          // stop it early; what it wrote so far is still copied o
 
 | | |
 | --- | --- |
-| `drive` | the drive whose files the command sees, read-only, at `/app` |
-| `mount` | more drives, each read-only at `/mnt/<drive id>` |
+| `drive` | the drive whose files the command sees, read only, at `/app` |
+| `mount` | more drives, each read only at `/mnt/<drive id>` |
 | `output` | the drive that receives what the command writes into `/out`. Without one there is no `/out` |
 | `caps` | what the sandbox may reach on the network, see below. `{}` unless given |
 | `command` | what to run inside, for example `['sh', '-c', 'node /app/setup.js']` |
@@ -133,7 +154,7 @@ Every sandbox uses the same image, `node:26-bookworm-slim`, pinned by its digest
 
 ## Files in and out
 
-The drive's files are copied out into a temporary folder and mounted read-only at `/app`. If
+The drive's files are copied out into a temporary folder and mounted read only at `/app`. If
 there is an output drive, `/out` is mounted writable. What the code wrote into `/out` is copied
 into the output drive when the command ends, for `run`, or when the sandbox is stopped, for
 `open`.
@@ -170,8 +191,8 @@ container.
 - **Docker.** [install.js](install.js) checks `docker --version` and installs Docker if it is
   missing: `get.docker.com` on linux and macOS, winget on Windows.
 - **The image** is built from the `Dockerfile` in the
-  [flamingo-docker](https://github.com/basim-12/flamingo-docker) dependency, at the commit
-  flamingo-node's `package.json` pins.
+  [`flamingo-docker`](https://github.com/basim-12/flamingo-docker) dependency, at the commit
+  `flamingo-node`'s `package.json` pins.
 - **The container** is started with `docker run`, with its volumes, ports and command read
   from that dependency's `docker-compose.json`. `${FLAMINGO_PATH}` in a volume becomes the
   `app` folder passed to `up()`.

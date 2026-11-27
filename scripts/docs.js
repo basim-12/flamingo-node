@@ -208,7 +208,7 @@ test('drive code runs straight from the drive; dynamic import() is refused', asy
   t.absent(fs.existsSync(path.join(home, storage, 'code')), 'no code was copied to disk')
 })
 
-// The one-step way to make a bot: run the generator and register the result.
+// The one step way to make a bot: run the generator and register the result.
 // A new bot is stopped, and its drive is also kept as a package of the same name.
 test('bot +<name> <generator> creates a stopped bot', async t => {
   const created = await cli('bot', '+alice', 'sample/generate?ask=no')
@@ -436,7 +436,7 @@ test('cap module: grant, see, revoke', async t => {
 })
 
 // The bot commands are a thin layer over the tasks module (tasks/README.md), built
-// on packs. A bot runs in-process: start it, it saves data to its drive, stop it,
+// on packs. A bot runs in this process: start it, it saves data to its drive, stop it,
 // and both the bot and its package now point at the revision with that data.
 test('tasks module: start a bot, let it save, stop it', async t => {
   const pkgs = await packs(path.join(home, 'tasks-api'))
