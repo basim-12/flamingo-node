@@ -209,15 +209,16 @@ async function packs (root = STORAGE) {
   async function run_from (drive, file, own, sandbox) {
     const provided = await modules_for(drive, own, sandbox)
     const protocol = new Module.Protocol({
-      async exists (url) {
-        return (await drive.entry(url.pathname)) !== null
+      exists (url) {
+        return handled(drive.entry(url.pathname).then(entry => entry !== null))
       },
-      async read (url) {
-        const data = await drive.get(url.pathname)
-        if (!url.pathname.endsWith('.js')) return data
-        const source = data.toString()
-        validate_cjs(source, url, provided, caps.allows, Boolean(sandbox))
-        return source
+      read (url) {
+        return handled(drive.get(url.pathname).then(data => {
+          if (!url.pathname.endsWith('.js')) return data
+          const source = data.toString()
+          validate_cjs(source, url, provided, caps.allows, Boolean(sandbox))
+          return source
+        }))
       }
     })
     const loader = new Module.Loader({ protocol, builtins: provided, defaultType: Module.constants.SCRIPT })
@@ -242,6 +243,11 @@ async function packs (root = STORAGE) {
     if (sandbox) provided.sandbox = sandbox
     return provided
   }
+}
+
+function handled (promise) {
+  promise.catch(() => {})
+  return promise
 }
 
 // README.md#code-loaded-from-drives, and the messages in ../cap/README.md#what-a-refused-require-says

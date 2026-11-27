@@ -487,6 +487,30 @@ test("on('exit', listener) keeps a bot running and runs the listener at the end"
   await pkgs.close()
 })
 
+// require.resolve() while index.js runs is refused, and the refused lookup must not stop
+// the process once the bot's drive is closed.
+test('require.resolve() in index.js fails, and does not stop the process', async t => {
+  const code = path.join(home, 'resolve-code')
+  fs.mkdirSync(code)
+  fs.writeFileSync(path.join(code, 'index.js'), [
+    'module.exports = async function (drive, { log }) {',
+    "  try { require.resolve('bare-fs') } catch (err) { log(err.code) }",
+    '}'
+  ].join('\n') + '\n')
+  fs.writeFileSync(path.join(code, 'generate.js'), 'module.exports = async function () {}\n')
+  const pkgs = await packs(path.join(home, 'resolve-api'))
+  const bots = await tasks(pkgs)
+  await pkgs.create('resolve-code', code)
+  await bots.create('rex', 'resolve-code/generate')
+
+  await (await bots.run('rex', () => {})).done
+  t.is(await bots.log('rex'), 'UNEXPECTED_PROMISE', 'the lookup is refused')
+  await new Promise(resolve => setTimeout(resolve, 500))
+  t.pass('the process is still running after the drive closed')
+  await bots.close()
+  await pkgs.close()
+})
+
 // commands.js only reads the command line; the work is in runtime.js (one api over packs and
 // tasks), so another command line tool can do the same things to the same storage without
 // going through argument parsing. Here is a package, a bot, its run and its log, as calls.

@@ -118,4 +118,5 @@ already contain one, and a local generator file must write one.
 - A name uses letters, numbers, underscores and hyphens, and starts with a letter or a number.
 - A relative path is resolved against the folder the command was typed in.
 
+What the code in a drive can use (`index.js`, a generator, `setup.js`) is in [CODE.md](CODE.md).
 How the cli, the daemon and the storage fit together is in [DESIGN.md](DESIGN.md).

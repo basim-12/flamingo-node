@@ -26,6 +26,7 @@ different set of modules:
 
 `sandbox` is a handle on a microVM, described in [sandbox](../sandbox/README.md). `setup.js`
 is not loaded here at all: `cli bot <name> --build` runs it inside the microVM.
+Everything else each one has, with an example, is in [CODE.md](../CODE.md).
 
 ## Commands
 
