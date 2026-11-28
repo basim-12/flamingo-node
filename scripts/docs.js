@@ -17,6 +17,7 @@ const path = require('bare-path')
 const process = require('bare-process')
 const { spawn } = require('bare-subprocess')
 const packs = require('./packs')
+const reference = require('./reference')
 
 // the storage folder's name, from the one place it is defined
 const storage = path.basename(packs.STORAGE)
@@ -383,8 +384,15 @@ test('pkg -<name> deletes a package', async t => {
 test('packs module: package operations as plain functions', async t => {
   const pkgs = await packs(path.join(home, 'packs-api'))
   const link = await pkgs.create('code', sample)
-  t.is(pkgs.get('code'), link, 'registered')
-  t.alike(pkgs.list(), ['code'])
+  t.alike(pkgs.list(), ['code'], 'registered')
+  t.is(pkgs.info(link), pkgs.info('code'), 'info takes the name or the link')
+  const name = Object.keys(files_of(sample))[0]
+  for (const each of ['code', link]) {
+    const drive = await pkgs.get(each)
+    t.is(await reference.of(drive), link, 'get opens the drive at that revision')
+    t.is((await drive.get('/' + name)).toString(), files_of(sample)[name], 'and reads it with its own get')
+    await drive.close()
+  }
   const folder = await pkgs.export('code', path.join(home, 'packs-api-export'))
   t.alike(files_of(folder), files_of(sample), 'exported')
   t.is(await pkgs.create('x', './sample').catch(err => err.message), 'Not an absolute path: ./sample', 'the caller makes a path absolute')
@@ -451,7 +459,7 @@ test('tasks module: start a bot, let it save, stop it', async t => {
   t.absent(seen.running, 'stopped')
 
   t.not(seen.drive, created, 'moved to a newer revision')
-  t.is(pkgs.get('hello'), seen.drive, 'package moved with it')
+  t.is(pkgs.info('hello'), `Name: hello\nDrive: ${seen.drive}`, 'package moved with it')
   const folder = await pkgs.export('hello', path.join(home, 'tasks-api-export'))
   t.is(fs.readFileSync(path.join(folder, 'data.txt'), 'utf8'), 'saved while running')
   await bots.close()

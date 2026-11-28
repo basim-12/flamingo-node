@@ -1,7 +1,7 @@
 # reference
 
 A `dat://` reference names one exact revision of a drive, as a string. This module turns one
-into its parts and back.
+into its parts and back, and opens the drive it names.
 
 ```text
 dat://<length>.<fork>.<id>.<hash>
@@ -51,6 +51,30 @@ The opposite of `decode`: builds the string from its parts.
 | `parts` | `{ length, fork, id, hash }`, and optionally `file` and `options` |
 
 Returns the `dat://` reference.
+
+### `open(store, link, { pinned })`
+
+Opens the drive `link` names and returns it. First it checks that the drive is on this machine,
+that it has the revision `link` names, and that the revision's hash matches, so a reference can't
+open different content than it names. The caller closes the drive when done.
+
+| | |
+| --- | --- |
+| `store` | the Corestore the drive is kept in |
+| `link` | a `dat://` reference. A file and options after it are ignored |
+| `pinned` | `true`, unless given, to read the drive exactly as it was at that revision, even if it has changed since. `false` to get the drive as it is now |
+
+Throws `Drive is not available locally: <id>`, `Referenced drive revision is unavailable`, or
+`Drive hash mismatch`.
+
+### `known(store, id)`
+
+Returns whether a drive's data is on this machine, without creating anything.
+
+| | |
+| --- | --- |
+| `store` | the Corestore to look in |
+| `id` | a drive id |
 
 ### `of(drive)`
 

@@ -13,7 +13,7 @@ const walk = require('acorn-walk')
 const capabilities = require('../cap')
 const { import_folder, export_folder } = require('../mirror')
 const { read_json, write_json, uuid } = require('../json')
-const { decode, of } = require('../reference')
+const { decode, encode, of, open, known } = require('../reference')
 
 const STORAGE = path.join(os.homedir(), '.ds')
 
@@ -26,7 +26,7 @@ async function packs (root = STORAGE) {
   await fsp.mkdir(root, { recursive: true, mode: 0o700 })
   const registry = Object.assign(Object.create(null), await read_json(path.join(root, 'pkgs.json')))
   const caps = await capabilities(root)
-  return { root, caps, close, list, get, find, info, source, open_drive, load, core, disk, create, update, drop, export: export_files }
+  return { root, caps, close, list, get, find, info, source, load, core, disk, create, update, drop, export: export_files }
 
   // DESIGN.md#opening-the-storage
   async function drives () {
@@ -63,8 +63,15 @@ async function packs (root = STORAGE) {
     return Object.keys(registry).sort()
   }
 
-  function get (name) {
-    return registry[name]
+  // the name's drive, or the drive a dat:// reference names
+  function link_of (name_or_link) {
+    if (registry[name_or_link]) return registry[name_or_link]
+    if (name_or_link.startsWith('dat://')) return name_or_link
+    throw new Error(`Unknown package: ${name_or_link}`)
+  }
+
+  async function get (name_or_link, { pinned = true } = {}) {
+    return open(await drives(), link_of(name_or_link), { pinned })
   }
 
   function find (link) {
@@ -72,8 +79,9 @@ async function packs (root = STORAGE) {
     return list().find(name => decode(registry[name]).id === id)
   }
 
-  function info (name) {
-    if (!registry[name]) throw new Error(`Unknown package: ${name}`)
+  function info (name_or_link) {
+    const name = registry[name_or_link] ? name_or_link : find(link_of(name_or_link))
+    if (!name) throw new Error(`Unknown package: ${name_or_link}`)
     return `Name: ${name}\nDrive: ${registry[name]}`
   }
 
@@ -109,21 +117,6 @@ async function packs (root = STORAGE) {
     throw new Error(`Unknown package or source: ${base}`)
   }
 
-  async function open_drive (link, pinned = true) {
-    const ref = decode(link)
-    const store = await drives()
-    if (!(await known(store, ref.id))) throw new Error(`Drive is not available locally: ${ref.id}`)
-    const drive = new Hyperdrive(store.session(), ref.id)
-    await drive.ready()
-    try {
-      if (drive.core.fork !== ref.fork || drive.core.length < ref.length) throw new Error('Referenced drive revision is unavailable')
-      if ((await drive.core.treeHash(ref.length)).toString('hex') !== ref.hash) throw new Error('Drive hash mismatch')
-      const view = pinned ? drive.checkout(ref.length) : drive
-      await view.ready()
-      return { drive, view, ref, close: async () => { if (pinned) await view.close(); await drive.close() } }
-    } catch (err) { await drive.close(); throw err }
-  }
-
   async function load (from, sandbox) {
     let drive
     let file
@@ -133,10 +126,10 @@ async function packs (root = STORAGE) {
       drive = new Localdrive(path.dirname(from.local))
       file = '/' + path.basename(from.local)
     } else {
-      const opened = await open_drive(from.link)
-      drive = opened.view
-      close = opened.close
-      code = `dat://${opened.ref.length}.${opened.ref.fork}.${opened.ref.id}.${opened.ref.hash}`
+      drive = await get(from.link)
+      close = () => drive.close()
+      const { length, fork, id, hash } = decode(from.link)
+      code = encode({ length, fork, id, hash })
       file = from.file
     }
     try {
@@ -163,8 +156,8 @@ async function packs (root = STORAGE) {
       } else if (from.local) {
         await import_folder(drive, from.local)
       } else {
-        const opened = await open_drive(from.link)
-        try { await new MirrorDrive(opened.view, drive, { prune: false, preload: false }).done() } finally { await opened.close() }
+        const copied = await get(from.link)
+        try { await new MirrorDrive(copied, drive, { prune: false, preload: false }).done() } finally { await copied.close() }
       }
       if (prepare) await prepare(drive, code)
       registry[name] = await of(drive)
@@ -187,8 +180,7 @@ async function packs (root = STORAGE) {
   async function drop (name) {
     if (!registry[name]) throw new Error(`Unknown package: ${name}`)
     const { id } = decode(registry[name])
-    const opened = await open_drive(registry[name], false)
-    await purge(opened.drive)
+    await purge(await get(name, { pinned: false }))
     for (const other of list()) if (decode(registry[other]).id === id) delete registry[other]
     await save()
   }
@@ -198,8 +190,8 @@ async function packs (root = STORAGE) {
     if (!path.isAbsolute(dirpath)) throw new Error(`Not an absolute path: ${dirpath}`)
     const real = path.join(await fsp.realpath(path.dirname(dirpath)), path.basename(dirpath))
     if (inside(await fsp.realpath(root), real)) throw new Error('Export must be outside managed storage')
-    const opened = await open_drive(registry[name], false)
-    try { await export_folder(opened.view, real) } finally { await opened.close() }
+    const drive = await get(name, { pinned: false })
+    try { await export_folder(drive, real) } finally { await drive.close() }
     return real
   }
 
@@ -265,20 +257,6 @@ function validate_cjs (source, url, provided, allows, strict) {
         : `This drive requires ${arg.value}, which it was not granted`)
     }
   })
-}
-
-// Whether a drive's data is already here. Corestore has no "do you have this?" call, so
-// open its core without letting it be created: a missing one says so on ready().
-async function known (store, id) {
-  const core = store.get({ key: id_encoding.decode(id), createIfMissing: false })
-  try {
-    await core.ready()
-  } catch (err) {
-    if (err.code !== 'STORAGE_EMPTY') throw err
-    return false
-  }
-  await core.close()
-  return true
 }
 
 async function purge (drive) {

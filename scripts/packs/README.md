@@ -82,14 +82,15 @@ Throws `Package already exists: <name>`, or what [`source`](#sourcespec) throws.
 
 What `cli pkg` calls. Returns every package name, sorted.
 
-### `info(name)`
+### `info(name_or_link)`
 
 What `cli pkg <name>` calls. Returns the two lines it prints, `Name: <name>` and
-`Drive: <reference>`. Throws `Unknown package: <name>`.
+`Drive: <reference>`. Throws `Unknown package: <name_or_link>` if no package has that name or
+that drive.
 
 | | |
 | --- | --- |
-| `name` | a package name |
+| `name_or_link` | a package name, or a `dat://` reference to a package's drive at any revision |
 
 ### `export(name, dirpath)`
 
@@ -113,18 +114,30 @@ the same drive. Throws `Unknown package: <name>`.
 | --- | --- |
 | `name` | a package name |
 
-### `get(name)`
+### `get(name_or_link, { pinned })`
 
-Returns the `dat://` reference `name` points at, or `undefined` if there is no such package.
+Opens a drive and returns it, so it is read with the drive's own functions, like
+`drive.get('/setup.js')`. Before returning, it checks that the revision's hash matches, so a
+reference can't open different content than it names. The caller closes the drive when done.
 
 | | |
 | --- | --- |
-| `name` | a package name |
+| `name_or_link` | a package name, or a `dat://` reference to any drive on this machine, a package's or not |
+| `pinned` | `true`, unless given, to read the drive exactly as it was at that revision, even if it has changed since. `false` to get the drive as it is now, which is also the only way to write to it |
+
+Throws `Unknown package: <name_or_link>`, or what
+[`reference.open`](../reference/README.md#openstore-link--pinned-) throws.
+
+```js
+const code = await pkgs.get('site')
+const generator = await code.get('/generate.js')
+await code.close()
+```
 
 ### `find(link)`
 
-The opposite of `get`: returns the name of the package whose drive `link` belongs to, or
-`undefined`. Any revision of that drive matches.
+Returns the name of the package whose drive `link` belongs to, or `undefined`. Any revision of
+that drive matches.
 
 | | |
 | --- | --- |
@@ -151,28 +164,6 @@ What it returns depends on what `spec` names:
 holds the `?key=value` pairs. Throws `Not an absolute path: <path>`,
 `No such file or folder: <path>`, `Source must not overlap managed storage`, or
 `Unknown package or source: <spec>`.
-
-### `open_drive(link, pinned = true)`
-
-Opens the drive `link` points at, after checking that the revision's hash matches, so a
-reference can't open different content than it names.
-
-| | |
-| --- | --- |
-| `link` | a `dat://` reference |
-| `pinned` | `true` to read the drive exactly as it was at that revision, even if it has changed since. `false` to read it as it is now |
-
-Returns `{ drive, view, ref, close }`:
-
-| | |
-| --- | --- |
-| `drive` | the drive itself |
-| `view` | what to read from: the revision when `pinned`, otherwise `drive` |
-| `ref` | `link` split into its parts, by [`reference.decode`](../reference/README.md#decodelink) |
-| `close()` | closes `view` and `drive` |
-
-Throws `Drive is not available locally: <id>`, `Referenced drive revision is unavailable`, or
-`Drive hash mismatch`.
 
 ### `load(from, sandbox)`
 

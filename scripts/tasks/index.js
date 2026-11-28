@@ -77,11 +77,11 @@ async function tasks (pkgs) {
     } else if (from.file) {
       link = await pkgs.create(name, spec, { namespace: 'bot', prepare: write_bot_json })
     } else {
-      const opened = await pkgs.open_drive(from.link, false)
+      const drive = await pkgs.get(from.link, { pinned: false })
       try {
-        await config(opened.drive)
-        link = await of(opened.drive)
-      } finally { await opened.close() }
+        await config(drive)
+        link = await of(drive)
+      } finally { await drive.close() }
       const { id } = decode(link)
       const clash = list().find(other => decode(registry[other]).id === id)
       if (clash) throw new Error(`That drive is already the drive of bot: ${clash}`)
@@ -94,19 +94,19 @@ async function tasks (pkgs) {
   async function build (name) {
     if (!registry[name]) throw new Error(`Unknown bot: ${name}`)
     if (busy(registry[name])) throw new Error('This bot is running')
-    const opened = await pkgs.open_drive(registry[name], false)
+    const drive = await pkgs.get(registry[name], { pinned: false })
     try {
-      const built = await opened.drive.get('/build.json')
+      const built = await drive.get('/build.json')
       if (built) return `Already built: ${JSON.parse(built).drive}`
 
-      const code = await pkgs.open_drive(await config(opened.drive))
+      const code = await pkgs.get(await config(drive))
       try {
-        if (!await code.view.entry('/setup.js')) return 'Nothing to build'
+        if (!await code.entry('/setup.js')) return 'Nothing to build'
         const out = await output_drive(name)
         const said = (printed, line) => printed ? `${printed}\n${line}` : line
         try {
           const setup = await sandbox({
-            drive: code.view,
+            drive: code,
             output: out,
             // `msb wait` loses the exit code, so the marker says whether setup.js passed
             command: ['sh', '-c', 'node /app/setup.js && touch /out/.built'],
@@ -116,30 +116,30 @@ async function tasks (pkgs) {
           if (!await out.entry('/.built')) throw new Error(said(printed, 'setup.js failed, so nothing was built'))
           await out.del('/.built')
           const link = await of(out)
-          await opened.drive.put('/build.json', Buffer.from(JSON.stringify({ drive: link }, null, 2) + '\n'))
+          await drive.put('/build.json', Buffer.from(JSON.stringify({ drive: link }, null, 2) + '\n'))
           return said(printed, `Built: ${link}`)
         } finally { await out.close() }
       } finally { await code.close() }
-    } finally { await opened.close() }
+    } finally { await drive.close() }
   }
 
   async function run (name, print) {
     if (!registry[name]) throw new Error(`Unknown bot: ${name}`)
     if (busy(registry[name])) throw new Error('This bot is already running')
-    const opened = await pkgs.open_drive(registry[name], false)
+    const drive = await pkgs.get(registry[name], { pinned: false })
     let loaded
     // index.js reaches the handle through require('sandbox'), so it is made first
     let box
     // what --build saved, read only at /out
     const built = await output_drive(name)
     try {
-      const link = await config(opened.drive)
-      box = lazy({ drive: opened.drive, built, audit: await pkgs.core('audit', name) })
+      const link = await config(drive)
+      box = lazy({ drive: drive, built, audit: await pkgs.core('audit', name) })
       loaded = await pkgs.load({ link, ...decode(link) }, box.handle)
     } catch (err) {
       if (box) await box.stop()
       await built.close()
-      await opened.close()
+      await drive.close()
       throw err
     }
 
@@ -167,8 +167,8 @@ async function tasks (pkgs) {
     running.set(name, active)
 
     let updates = Promise.resolve()
-    const updated = () => { updates = updates.then(() => refresh(opened.drive)) }
-    opened.drive.core.on('append', updated)
+    const updated = () => { updates = updates.then(() => refresh(drive)) }
+    drive.core.on('append', updated)
 
     const pidfile = path.join(run_dir, name + '.pid')
     await fsp.mkdir(run_dir, { recursive: true, mode: 0o700 })
@@ -177,7 +177,7 @@ async function tasks (pkgs) {
 
     active.done = (async () => {
       try {
-        await loaded.fn(opened.drive, { on, log: record })
+        await loaded.fn(drive, { on, log: record })
         // index.js returned, but a bot that set exit listeners keeps running until it is stopped
         if (listeners.length) {
           await exit
@@ -187,17 +187,17 @@ async function tasks (pkgs) {
         append('Error: ' + err.message)
         throw err
       } finally {
-        opened.drive.core.off('append', updated)
+        drive.core.off('append', updated)
         try {
           await updates
-          await refresh(opened.drive)
+          await refresh(drive)
         } finally {
           await box.stop()
           await built.close()
           await appends
           await core.close()
           await fsp.rm(pidfile, { force: true })
-          await opened.close()
+          await drive.close()
           running.delete(name)
         }
       }

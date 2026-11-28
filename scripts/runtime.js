@@ -35,9 +35,9 @@ async function runtime (root) {
 
   // a package that is a bot's drive goes with its bot, so the bot is not left without one
   async function drop_pkg (name) {
-    const link = pkgs.get(name)
-    if (!link) throw new Error(`Unknown package: ${name}`)
-    const { id } = decode(link)
+    const drive = await pkgs.get(name)
+    const { id } = drive
+    await drive.close()
     for (const bot of bots.list()) if (decode((await bots.see(bot)).drive).id === id) return bots.drop(bot)
     await pkgs.drop(name)
   }
