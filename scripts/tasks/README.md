@@ -95,7 +95,7 @@ works even while another process has that open.
 | --- | --- | --- |
 | `list()` | `cli bot` | Bot names, sorted. |
 | `see(name)` | `cli bot <name>` | Returns `{ name, drive, package, output, logged, running }`. `package` is `null` when the drive is no package. Throws for an unknown name. |
-| `create(name, spec)` | `cli bot +<name> <specifier>` | A local path in `spec` has to be absolute. Returns the bot's drive reference. |
+| `create(name, spec)` | `cli bot +<name> <specifier>` | A local path in `spec` has to be absolute. Returns the bot's `dat://` reference. |
 | `build(name)` | `cli bot <name> --build` | Returns the text `--build` prints. |
 | `run(name, print)` | `cli bot <name> --run` | Runs the bot in this process, not in a daemon. Calls `print` with the `cli bot <name>` block once it runs, then with each line the bot logs, and writes `run/<name>.pid`. Each time the bot writes to its drive, the reference in `bots.json` and in the packages list moves to the new revision. Returns `{ done, stop }`: `stop()` asks the bot to stop, and `done` settles with `see(name)` once it has. |
 | `end(name)` | `cli bot <name> --end` | Stops a bot this process runs directly. Otherwise it sends SIGTERM to the process in `run/<name>.pid` and waits up to 30 seconds for it to stop. Does nothing if the bot is not running. |

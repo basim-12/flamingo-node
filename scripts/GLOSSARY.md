@@ -35,7 +35,8 @@ Every `cli` command talks to it. It starts by itself and stops when no command a
 needs it.
 
 **`dat://` reference**: `dat://<length>.<fork>.<id>.<hash>`. It names a drive and one revision
-of it, and that revision's hash is checked when it is opened.
+of it, and that revision's hash is checked when it is opened. The
+[reference](reference/README.md) module reads and writes one.
 
 **drive**: a Hyperdrive, a set of files stored as data, with its own id.
 

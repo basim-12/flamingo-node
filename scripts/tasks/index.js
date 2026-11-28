@@ -2,7 +2,7 @@ const fs = require('bare-fs')
 const fsp = require('bare-fs/promises')
 const path = require('bare-path')
 const process = require('bare-process')
-const { reference, drive_link } = require('../packs')
+const { decode, of } = require('../reference')
 const { read_json, write_json } = require('../json')
 const { run: sandbox, lazy } = require('../sandbox/run')
 
@@ -40,7 +40,7 @@ async function tasks (pkgs) {
     const core = await pkgs.core('log', name)
     await core.ready()
     try {
-      return { name, drive: link, package: pkgs.find(link) || null, output: await drive_link(out), logged: core.length, running: busy(link) }
+      return { name, drive: link, package: pkgs.find(link) || null, output: await of(out), logged: core.length, running: busy(link) }
     } finally {
       await core.close()
       if (!active) await out.close()
@@ -62,8 +62,8 @@ async function tasks (pkgs) {
   }
 
   function busy (link) {
-    const { id } = reference(link)
-    return list().some(name => reference(registry[name]).id === id && runner(name))
+    const { id } = decode(link)
+    return list().some(name => decode(registry[name]).id === id && runner(name))
   }
 
   async function create (name, spec) {
@@ -80,10 +80,10 @@ async function tasks (pkgs) {
       const opened = await pkgs.open_drive(from.link, false)
       try {
         await config(opened.drive)
-        link = await drive_link(opened.drive)
+        link = await of(opened.drive)
       } finally { await opened.close() }
-      const { id } = reference(link)
-      const clash = list().find(other => reference(registry[other]).id === id)
+      const { id } = decode(link)
+      const clash = list().find(other => decode(registry[other]).id === id)
       if (clash) throw new Error(`That drive is already the drive of bot: ${clash}`)
     }
     registry[name] = link
@@ -115,7 +115,7 @@ async function tasks (pkgs) {
           const printed = await setup.done
           if (!await out.entry('/.built')) throw new Error(said(printed, 'setup.js failed, so nothing was built'))
           await out.del('/.built')
-          const link = await drive_link(out)
+          const link = await of(out)
           await opened.drive.put('/build.json', Buffer.from(JSON.stringify({ drive: link }, null, 2) + '\n'))
           return said(printed, `Built: ${link}`)
         } finally { await out.close() }
@@ -135,7 +135,7 @@ async function tasks (pkgs) {
     try {
       const link = await config(opened.drive)
       box = lazy({ drive: opened.drive, built, audit: await pkgs.core('audit', name) })
-      loaded = await pkgs.load({ link, ...reference(link) }, box.handle)
+      loaded = await pkgs.load({ link, ...decode(link) }, box.handle)
     } catch (err) {
       if (box) await box.stop()
       await built.close()
@@ -247,7 +247,7 @@ async function tasks (pkgs) {
 
   async function refresh (drive) {
     const link = await pkgs.update(drive)
-    for (const name of list()) if (reference(registry[name]).id === drive.id) registry[name] = link
+    for (const name of list()) if (decode(registry[name]).id === drive.id) registry[name] = link
     await save()
   }
 }
@@ -265,7 +265,7 @@ async function config (drive) {
   const data = await drive.get('/bot.json')
   if (!data) throw new Error("A bot's drive must contain bot.json, which says what to run")
   const { run } = JSON.parse(data)
-  if (typeof run !== 'string' || !reference(run).file) throw new Error('bot.json.run must be a pinned drive URL with a filepath')
+  if (typeof run !== 'string' || !decode(run).file) throw new Error('bot.json.run must be a dat:// reference with a file path')
   return run
 }
 

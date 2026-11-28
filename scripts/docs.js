@@ -165,7 +165,7 @@ test('a dat:// reference must match exactly', async t => {
   const wrong_length = `dat://${Number(length) + 5}.${fork}.${id}.${hash}`
   t.is((await cli('pkg', '+x', wrong_hash)).err, 'Drive hash mismatch')
   t.is((await cli('pkg', '+x', wrong_length)).err, 'Referenced drive revision is unavailable')
-  t.ok((await cli('pkg', '+x', 'dat://not-a-reference')).err.startsWith('Invalid pinned drive reference'), 'malformed reference refused')
+  t.ok((await cli('pkg', '+x', 'dat://not-a-reference')).err.startsWith('Invalid dat:// reference'), 'malformed reference refused')
   t.is((await cli('pkg', '+x', './no-such-folder')).err, `No such file or folder: ${path.join(repo, 'no-such-folder')}`)
 })
 

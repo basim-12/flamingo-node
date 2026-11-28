@@ -1,5 +1,6 @@
 const process = require('bare-process')
 const packs = require('./packs')
+const { decode } = require('./reference')
 const tasks = require('./tasks')
 
 module.exports = runtime
@@ -36,8 +37,8 @@ async function runtime (root) {
   async function drop_pkg (name) {
     const link = pkgs.get(name)
     if (!link) throw new Error(`Unknown package: ${name}`)
-    const { id } = packs.reference(link)
-    for (const bot of bots.list()) if (packs.reference((await bots.see(bot)).drive).id === id) return bots.drop(bot)
+    const { id } = decode(link)
+    for (const bot of bots.list()) if (decode((await bots.see(bot)).drive).id === id) return bots.drop(bot)
     await pkgs.drop(name)
   }
 }

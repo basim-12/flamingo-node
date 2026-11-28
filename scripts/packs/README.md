@@ -40,19 +40,6 @@ any other special file in it is refused with `Unsupported filesystem entry`.
 A generator is a js file that fills a new drive. How to write and run one, with an example,
 is in [GENERATORS.md](../GENERATORS.md).
 
-## Drive references
-
-Every package is recorded as a full reference to one exact revision:
-
-```text
-dat://<length>.<fork>.<id>.<hash>
-```
-
-`id` is the drive's public key. It stays the same when the drive changes, so it names the
-drive, not its content. `length`, `fork` and `hash` pick out one revision of it. Opening a
-reference checks that revision's hash, so a reference can't quietly point at other
-content.
-
 ## API
 
 ```js
@@ -73,7 +60,7 @@ process has the storage open. A function that needs a drive then fails with
 out is in [DESIGN.md](DESIGN.md).
 
 Each package name points at one exact revision of its drive, written as a
-[drive reference](#drive-references). Most functions below take or return one.
+[`dat://` reference](../reference/README.md). Most functions below take or return one.
 
 ### `create(name, spec, { namespace, prepare })`
 
@@ -87,7 +74,7 @@ reference. If any step throws, the new drive is deleted, so `name` stays free.
 | `name` | the new package's name |
 | `spec` | a [specifier](../README.md#specifiers). A local path has to be absolute |
 | `namespace` | a group in the storage that the new drive is kept under, `pkg` unless given. A module built on `packs` passes its own, so its drives are kept apart: [tasks](../tasks/README.md) passes `bot` |
-| `prepare(drive, code)` | called once the drive is filled, before `name` is saved, so the caller can add files of its own. `code` is the drive reference of the generator's drive, or `null` when no generator ran |
+| `prepare(drive, code)` | called once the drive is filled, before `name` is saved, so the caller can add files of its own. `code` is the `dat://` reference of the generator's drive, or `null` when no generator ran |
 
 Throws `Package already exists: <name>`, or what [`source`](#sourcespec) throws.
 
@@ -128,7 +115,7 @@ the same drive. Throws `Unknown package: <name>`.
 
 ### `get(name)`
 
-Returns the drive reference `name` points at, or `undefined` if there is no such package.
+Returns the `dat://` reference `name` points at, or `undefined` if there is no such package.
 
 | | |
 | --- | --- |
@@ -141,7 +128,7 @@ The opposite of `get`: returns the name of the package whose drive `link` belong
 
 | | |
 | --- | --- |
-| `link` | a drive reference |
+| `link` | a `dat://` reference |
 
 ### `source(spec)`
 
@@ -158,7 +145,7 @@ What it returns depends on what `spec` names:
 | --- | --- |
 | a local folder or file | `{ local, generator, options }`: the real path, and `generator: true` if it is a file |
 | a `dat://` reference | `{ link, length, fork, id, hash, file, options }`: the reference and its parts |
-| a package name or drive id | `{ link, file, options }`: the drive reference it stands for |
+| a package name or drive id | `{ link, file, options }`: the `dat://` reference it stands for |
 
 `file` is the path after the drive, like `/generate.js`, or `''` if there is none. `options`
 holds the `?key=value` pairs. Throws `Not an absolute path: <path>`,
@@ -172,7 +159,7 @@ reference can't open different content than it names.
 
 | | |
 | --- | --- |
-| `link` | a drive reference |
+| `link` | a `dat://` reference |
 | `pinned` | `true` to read the drive exactly as it was at that revision, even if it has changed since. `false` to read it as it is now |
 
 Returns `{ drive, view, ref, close }`:
@@ -181,7 +168,7 @@ Returns `{ drive, view, ref, close }`:
 | --- | --- |
 | `drive` | the drive itself |
 | `view` | what to read from: the revision when `pinned`, otherwise `drive` |
-| `ref` | `link` split into its parts, by [`packs.reference`](#packsreferencelink) |
+| `ref` | `link` split into its parts, by [`reference.decode`](../reference/README.md#decodelink) |
 | `close()` | closes `view` and `drive` |
 
 Throws `Drive is not available locally: <id>`, `Referenced drive revision is unavailable`, or
@@ -198,7 +185,7 @@ generator is loaded this way, and so is a bot's `index.js`. What that code can `
 | `from` | what `source` returned for the file |
 | `sandbox` | what the code gets as `require('sandbox')`, the [sandbox api](../sandbox/README.md#the-api-requiresandbox). Left out for a generator |
 
-Returns `{ fn, code }`: the exported function, and the drive reference of the drive it came
+Returns `{ fn, code }`: the exported function, and the `dat://` reference of the drive it came
 from, or `null` for a file on this machine. Throws `File not found in the drive: <file>`,
 `<file> must export a function`, or a refused `require`
 ([cap](../cap/README.md#what-a-refused-require-says)).
@@ -229,7 +216,7 @@ the same drive.
 
 A drive that is written to gets a new revision, but its package names still point at the old
 one. `update` points every name for `drive` at its newest revision, saves `pkgs.json`, and
-returns the new drive reference.
+returns the new `dat://` reference.
 
 | | |
 | --- | --- |
@@ -238,12 +225,3 @@ returns the new drive reference.
 ### `close()`
 
 Waits for `pkgs.json` to finish saving, then closes the drive storage if it was opened.
-
-### `packs.reference(link)`
-
-Splits a drive reference into `{ length, fork, id, hash, file, options }`. Throws
-`Invalid pinned drive reference: <link>`.
-
-### `packs.drive_link(drive)`
-
-Returns the drive reference of a drive's current revision.

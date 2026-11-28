@@ -1,0 +1,62 @@
+# reference
+
+A `dat://` reference names one exact revision of a drive, as a string. This module turns one
+into its parts and back.
+
+```text
+dat://<length>.<fork>.<id>.<hash>
+```
+
+`id` is the drive's public key. It stays the same when the drive changes, so it names the
+drive, not its content. `length` and `fork` pick out one revision of it, and `hash` is that
+revision's hash. Opening a reference checks the hash, so a reference can't quietly point at
+other content.
+
+A reference can also name a file in the drive, with options after it, the way a
+[specifier](../README.md#specifiers) does:
+
+```text
+dat://<length>.<fork>.<id>.<hash>/generate.js?ask=no&n=2
+```
+
+```js
+const reference = require('./reference')
+
+const parts = reference.decode('dat://3.0.8enyhokh….b81d8037…/generate.js?ask=no&n=2')
+// { length: 3, fork: 0, id: '8enyhokh…', hash: 'b81d8037…', file: '/generate.js', options: { ask: 'no', n: '2' } }
+
+reference.encode(parts) // the same string again
+```
+
+## API
+
+### `decode(link)`
+
+Splits a `dat://` reference into its parts. Throws `Invalid dat:// reference: <link>` if it
+isn't one.
+
+| | |
+| --- | --- |
+| `link` | a `dat://` reference |
+
+Returns `{ length, fork, id, hash, file, options }`. `file` is the path after the drive, or `''`
+if there is none, and `options` holds the `?key=value` pairs as strings, `{}` if there are none.
+
+### `encode(parts)`
+
+The opposite of `decode`: builds the string from its parts.
+
+| | |
+| --- | --- |
+| `parts` | `{ length, fork, id, hash }`, and optionally `file` and `options` |
+
+Returns the `dat://` reference.
+
+### `of(drive)`
+
+Returns the `dat://` reference of a drive's current revision, so it changes every time the
+drive is written to.
+
+| | |
+| --- | --- |
+| `drive` | an open drive |
