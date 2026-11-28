@@ -147,6 +147,9 @@ audit core, gives `box.handle` to `index.js` as `require('sandbox')`
 
 `cli bot <name> --build` and a bot's sandbox are both given `{}`, so neither has a network.
 
+Every `msb` option we can build caps on is in [msb.md](msb.md), and what `crun` can restrict
+inside a microVM is in [crun.md](crun.md).
+
 ## The image
 
 Every sandbox uses the same image, `node:26-bookworm-slim`, pinned by its digest (`IMAGE` in
