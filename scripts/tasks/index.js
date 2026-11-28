@@ -134,7 +134,7 @@ async function tasks (pkgs) {
     const built = await output_drive(name)
     try {
       const link = await config(drive)
-      box = lazy({ drive: drive, built, audit: await pkgs.core('audit', name) })
+      box = lazy({ drive, built, audit: await pkgs.core('audit', name) })
       loaded = await pkgs.load({ link, ...decode(link) }, box.handle)
     } catch (err) {
       if (box) await box.stop()
