@@ -100,9 +100,9 @@ function files_of (folder) {
   return files
 }
 
-async function export_pkg (name) {
+async function export_pkg (name, kind = 'pkg') {
   const folder = path.join(home, 'export-' + ++export_count)
-  await cli('pkg', name, folder)
+  await cli(kind, name, folder)
   return folder
 }
 
@@ -210,20 +210,21 @@ test('drive code runs straight from the drive; dynamic import() is refused', asy
 })
 
 // The one step way to make a bot: run the generator and register the result.
-// A new bot is stopped, and its drive is also kept as a package of the same name.
+// A new bot is stopped, and it is a bot only: `cli pkg` does not list it.
 test('bot +<name> <generator> creates a stopped bot', async t => {
   const created = await cli('bot', '+alice', 'sample/generate?ask=no')
   t.is(created.code, 0, created.err)
   t.ok(created.out.includes('Status: stopped'), 'starts stopped')
   t.ok((await cli('bot')).out.includes('Name: alice'), 'listed')
-  t.is(drive_of(await cli('pkg', 'alice')), drive_of(created), 'kept as a package')
+  t.is((await cli('pkg', 'alice')).err, 'Unknown package: alice', 'not a package')
+  t.absent((await cli('pkg')).out.includes('Name: alice'), 'not listed as one')
 })
 
 // bot.json tells the CLI what to run. The CLI writes it itself, not the generator:
 // the pinned reference of the drive the generator came from, plus its index.js.
 // The code can't change under a bot without its reference changing.
 test('bot.json pins the code the bot runs', async t => {
-  const folder = await export_pkg('alice')
+  const folder = await export_pkg('alice', 'bot')
   t.alike(fs.readdirSync(folder).sort(), ['bot.json', 'config.json'])
   t.is(read_json(path.join(folder, 'bot.json')).run, code_link + '/index.js')
 })
@@ -248,7 +249,7 @@ test('bot +<name> <folder> makes a bot from a folder with a bot.json', async t =
   fs.writeFileSync(path.join(folder, 'bot.json'), JSON.stringify({ run: code_link + '/index.js' }))
   const result = await cli_in(home, 'bot', '+erin', './erin-folder')
   t.is(result.code, 0, result.err)
-  t.is(drive_of(result), drive_of(await cli('pkg', 'erin')), 'its drive is kept as a package of the same name')
+  t.is((await cli('pkg', 'erin')).code, 1, 'its drive is not a package')
   t.is((await cli('bot', 'erin', '--run')).code, 0)
   await cli('bot', 'erin', '--end')
   t.ok((await cli('bot', 'erin', '--log')).out.includes('sample stopping'), 'it ran the code its bot.json names')
@@ -335,13 +336,12 @@ test('bot <name> --run --attach watches it; Ctrl+C detaches, --end stops it', as
   t.ok(ended.out.endsWith('Status: stopped'), 'and ends with its state')
 })
 
-// What a running bot saves is kept: the drive moves to a new revision, and the bot
-// and its package both point at it.
+// What a running bot saves is kept: its drive moves to a new revision, and
+// `cli bot <name> <dirpath>` copies out what it has now.
 test('what a bot saves while running is kept', async t => {
-  const folder = await export_pkg('alice')
+  const folder = await export_pkg('alice', 'bot')
   t.is(read_json(path.join(folder, 'bot.json')).run, code_link + '/index.js', 'still the same code')
   t.is(fs.readFileSync(path.join(folder, 'data.txt'), 'utf8'), 'saved while running')
-  t.is(drive_of(await cli('pkg', 'alice')), drive_of(await cli('bot', 'alice')), 'bot and package agree')
 })
 
 // Two bots on one drive would write their data into the same drive, so a drive is the
@@ -352,7 +352,7 @@ test('bot registration is refused when it would clash', async t => {
   const taken = 'That drive is already the drive of bot: alice'
   const alice = drive_of(await cli('bot', 'alice'))
   t.is((await cli('bot', '+alice', 'sample/generate?ask=no')).err, 'Bot already exists: alice')
-  t.is((await cli('bot', '+dave', 'alice')).err, taken, 'by package name')
+  t.is((await cli('bot', '+dave', 'carol-config')).err, 'That drive is already the drive of bot: carol', 'by package name')
   t.is((await cli('bot', '+dave', alice)).err, taken, 'by dat:// reference')
   t.is((await cli('bot', '+dave', parts_of(alice).id)).err, taken, 'by drive id')
   t.is((await cli('bot', '+dave', 'by-link')).err, missing)
@@ -363,9 +363,10 @@ test('bot registration is refused when it would clash', async t => {
 
 // Deleting a bot removes its own drive, but never the code it was made from.
 test('bot -<name> deletes the bot and its drive, keeping the code', async t => {
+  const { id } = parts_of(drive_of(await cli('bot', 'alice')))
   t.is((await cli('bot', '-alice')).out, 'Deleted: alice')
   t.is((await cli('bot', 'alice')).err, 'Unknown bot: alice')
-  t.is((await cli('pkg', 'alice')).code, 1, 'its package is gone too')
+  t.is((await cli('pkg', '+gone', id)).err, `Unknown package or source: ${id}`, 'its drive is gone too')
   t.is(drive_of(await cli('pkg', 'sample')), code_link, 'code package kept')
 })
 
@@ -445,7 +446,7 @@ test('cap module: grant, see, revoke', async t => {
 
 // The bot commands are a thin layer over the tasks module (tasks/README.md), built
 // on packs. A bot runs in this process: start it, it saves data to its drive, stop it,
-// and both the bot and its package now point at the revision with that data.
+// and the bot now points at the revision with that data.
 test('tasks module: start a bot, let it save, stop it', async t => {
   const pkgs = await packs(path.join(home, 'tasks-api'))
   const bots = await tasks(pkgs)
@@ -459,8 +460,7 @@ test('tasks module: start a bot, let it save, stop it', async t => {
   t.absent(seen.running, 'stopped')
 
   t.not(seen.drive, created, 'moved to a newer revision')
-  t.is(pkgs.info('hello'), `Name: hello\nDrive: ${seen.drive}`, 'package moved with it')
-  const folder = await pkgs.export('hello', path.join(home, 'tasks-api-export'))
+  const folder = await bots.export('hello', path.join(home, 'tasks-api-export'))
   t.is(fs.readFileSync(path.join(folder, 'data.txt'), 'utf8'), 'saved while running')
   await bots.close()
   await pkgs.close()
@@ -489,7 +489,7 @@ test("on('exit', listener) keeps a bot running and runs the listener at the end"
   await bots.end('ivy')
   await done
   t.ok((await bots.log('ivy')).endsWith('listener ran'), 'the listener ran when it was stopped')
-  const folder = await pkgs.export('ivy', path.join(home, 'listener-export'))
+  const folder = await bots.export('ivy', path.join(home, 'listener-export'))
   t.is(fs.readFileSync(path.join(folder, 'goodbye.txt'), 'utf8'), 'cleaned up', 'and what it saved is kept')
   await bots.close()
   await pkgs.close()
@@ -526,7 +526,7 @@ test('runtime module: the cli as plain functions', async t => {
   const ds = await runtime(path.join(home, 'runtime-api'))
   await ds.pkg.create('code', sample)
   await ds.bot.create('hello', 'code/generate')
-  t.alike([ds.pkg.list(), ds.bot.list()], [['code', 'hello'], ['hello']], "a code package, a bot, and the bot's drive registered too")
+  t.alike([ds.pkg.list(), ds.bot.list()], [['code'], ['hello']], 'a code package and a bot')
 
   const run = await ds.bot.run('hello', () => {})
   t.ok((await ds.bot.see('hello')).running, 'running')

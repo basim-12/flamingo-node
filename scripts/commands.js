@@ -13,6 +13,7 @@ const usage = `Usage:
   cli pkg -<name>
   cli bot +<name> <specifier>
   cli bot <name> [--see|--run|--run --attach|--end|--log|--log=<count>|--build] | cli bot
+  cli bot <name> <dirpath> | cli bot <name> --export=<dirpath>
   cli bot -<name>
   cli cap [--expand] | cli cap <name>
   cli cap +<name> | cli cap -<name>
@@ -52,11 +53,9 @@ function parse (args) {
   if (kind === 'bot' && option === '--log') return { kind, name, action: 'log' }
   if (kind === 'bot' && /^--log=[1-9]\d*$/.test(option)) return { kind, name, action: 'log', count: Number(option.slice(6)) }
   if (kind === 'bot' && option === '--build') return { kind, name, action: 'build' }
-  if (kind === 'pkg') {
-    if (option.startsWith('--import=') && option.slice(9)) return { kind, name, action: 'create', source: option.slice(9) }
-    if (option.startsWith('--export=') && option.slice(9)) return { kind, name, action: 'export', source: option.slice(9) }
-    if (!option.startsWith('-')) return { kind, name, action: 'export', source: option }
-  }
+  if (kind === 'pkg' && option.startsWith('--import=') && option.slice(9)) return { kind, name, action: 'create', source: option.slice(9) }
+  if (kind !== 'cap' && option.startsWith('--export=') && option.slice(9)) return { kind, name, action: 'export', source: option.slice(9) }
+  if (kind !== 'cap' && !option.startsWith('-')) return { kind, name, action: 'export', source: option }
   throw new Error(usage)
 }
 
@@ -94,6 +93,7 @@ async function command (ds, { kind, action, name, source, count }, cwd) {
   }
   if (action === 'log') return await ds.bot.log(name, count) || 'This bot has logged nothing.'
   if (action === 'build') return ds.bot.build(name)
+  if (action === 'export') return await see(name) + '\nExported to: ' + await ds.bot.export(name, path.resolve(cwd, source))
   if (action === 'end') await ds.bot.end(name)
   if (action === 'delete') {
     await ds.bot.drop(name)

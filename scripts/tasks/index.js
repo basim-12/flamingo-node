@@ -13,7 +13,7 @@ async function tasks (pkgs) {
   const run_dir = path.join(pkgs.root, 'run')
   const running = new Map()
   let saving = Promise.resolve()
-  const api = { close, list, see, create, build, run, end, log, drop }
+  const api = { close, list, see, create, build, run, end, log, export: export_files, drop }
 
   const registry = Object.assign(Object.create(null), await read_json(path.join(pkgs.root, 'bots.json')))
   return api
@@ -40,7 +40,7 @@ async function tasks (pkgs) {
     const core = await pkgs.core('log', name)
     await core.ready()
     try {
-      return { name, drive: link, package: pkgs.find(link) || null, output: await of(out), logged: core.length, running: busy(link) }
+      return { name, drive: link, output: await of(out), logged: core.length, running: busy(link) }
     } finally {
       await core.close()
       if (!active) await out.close()
@@ -73,9 +73,9 @@ async function tasks (pkgs) {
     if (from.local) {
       // a folder or a local generator brings its own bot.json, because there is no code drive
       // here for the cli to point one at
-      link = await pkgs.create(name, spec, { namespace: 'bot', prepare: config })
+      link = await pkgs.make(name, spec, { namespace: 'bot', prepare: config })
     } else if (from.file) {
-      link = await pkgs.create(name, spec, { namespace: 'bot', prepare: write_bot_json })
+      link = await pkgs.make(name, spec, { namespace: 'bot', prepare: write_bot_json })
     } else {
       const drive = await pkgs.get(from.link, { pinned: false })
       try {
@@ -233,12 +233,16 @@ async function tasks (pkgs) {
     } finally { await core.close() }
   }
 
+  function export_files (name, dirpath) {
+    if (!registry[name]) throw new Error(`Unknown bot: ${name}`)
+    return pkgs.export(registry[name], dirpath)
+  }
+
   async function drop (name) {
     const link = registry[name]
     if (!link) throw new Error(`Unknown bot: ${name}`)
     if (busy(link)) throw new Error('Cannot delete a running bot or its package')
-    const pack = pkgs.find(link)
-    if (pack) await pkgs.drop(pack)
+    await pkgs.drop(link)
     // named after the bot, so a later bot with the same name would inherit them
     for (const kind of ['log', 'audit']) await (await pkgs.core(kind, name)).purge()
     delete registry[name]
@@ -246,15 +250,15 @@ async function tasks (pkgs) {
   }
 
   async function refresh (drive) {
-    const link = await pkgs.update(drive)
+    const link = await of(drive)
     for (const name of list()) if (decode(registry[name]).id === drive.id) registry[name] = link
     await save()
   }
 }
 
 // the lines `cli bot <name>` prints, from what see() returns
-function describe ({ name, drive, package: pack, output, logged, running }) {
-  return `Name: ${name}\nDrive: ${drive}\nPackage: ${pack || '(unnamed)'}\nOutput: ${output}\nLog: ${logged} ${logged === 1 ? 'line' : 'lines'}\nStatus: ${running ? 'running' : 'stopped'}`
+function describe ({ name, drive, output, logged, running }) {
+  return `Name: ${name}\nDrive: ${drive}\nOutput: ${output}\nLog: ${logged} ${logged === 1 ? 'line' : 'lines'}\nStatus: ${running ? 'running' : 'stopped'}`
 }
 
 function write_bot_json (drive, code) {

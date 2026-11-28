@@ -29,6 +29,7 @@ async function runtime (root) {
       run: bots.run,
       end: bots.end,
       log: bots.log,
+      export: bots.export,
       drop: bots.drop
     }
   }

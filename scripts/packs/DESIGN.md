@@ -15,9 +15,8 @@ and rename it into place ([json.js](../json.js)), so a crash never leaves half a
 
 Everything else is in one Corestore, `corestore/`, the store that holds every hypercore, and
 so every drive. It is split into namespaces, groups that keep one kind of data apart from
-another. `create` makes each
-package's drive under `<namespace>/<name>/<random id>`, so a name used again after `drop` gets a
-new drive. `core` and `disk` keep theirs under `<namespace>/<name>`. Which namespaces datashell
+another. `make` keeps each new drive under `<namespace>/<name>/<random id>`, so a name used
+again after `drop` gets a new drive. `core` and `disk` keep theirs under `<namespace>/<name>`. Which namespaces datashell
 uses is in the [datashell design](../DESIGN.md#storage).
 
 ## Opening the storage

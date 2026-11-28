@@ -26,7 +26,7 @@ async function packs (root = STORAGE) {
   await fsp.mkdir(root, { recursive: true, mode: 0o700 })
   const registry = Object.assign(Object.create(null), await read_json(path.join(root, 'pkgs.json')))
   const caps = await capabilities(root)
-  return { root, caps, close, list, get, find, info, source, load, core, disk, create, update, drop, export: export_files }
+  return { root, caps, close, list, get, info, source, load, core, disk, make, create, drop, export: export_files }
 
   // DESIGN.md#opening-the-storage
   async function drives () {
@@ -74,13 +74,15 @@ async function packs (root = STORAGE) {
     return open(await drives(), link_of(name_or_link), { pinned })
   }
 
-  function find (link) {
-    const { id } = decode(link)
+  // a drive has at most one package name, because create always makes a new drive
+  function name_of (name_or_link) {
+    if (registry[name_or_link]) return name_or_link
+    const { id } = decode(link_of(name_or_link))
     return list().find(name => decode(registry[name]).id === id)
   }
 
   function info (name_or_link) {
-    const name = registry[name_or_link] ? name_or_link : find(link_of(name_or_link))
+    const name = name_of(name_or_link)
     if (!name) throw new Error(`Unknown package: ${name_or_link}`)
     return `Name: ${name}\nDrive: ${registry[name]}`
   }
@@ -141,8 +143,14 @@ async function packs (root = STORAGE) {
     } finally { await close() }
   }
 
-  async function create (name, spec, { namespace = 'pkg', prepare } = {}) {
+  async function create (name, spec) {
     if (registry[name]) throw new Error(`Package already exists: ${name}`)
+    registry[name] = await make(name, spec)
+    await save()
+    return registry[name]
+  }
+
+  async function make (name, spec, { namespace = 'pkg', prepare } = {}) {
     const from = await source(spec)
     const store = await drives()
     const drive = new Hyperdrive(store.namespace(namespace).namespace(name).namespace(uuid()))
@@ -160,37 +168,27 @@ async function packs (root = STORAGE) {
         try { await new MirrorDrive(copied, drive, { prune: false, preload: false }).done() } finally { await copied.close() }
       }
       if (prepare) await prepare(drive, code)
-      registry[name] = await of(drive)
-      await save()
-      return registry[name]
+      return await of(drive)
     } catch (err) {
-      delete registry[name]
       await purge(drive)
       throw err
     } finally { await drive.close() }
   }
 
-  async function update (drive) {
-    const link = await of(drive)
-    for (const name of list()) if (decode(registry[name]).id === drive.id) registry[name] = link
-    await save()
-    return link
-  }
-
-  async function drop (name) {
-    if (!registry[name]) throw new Error(`Unknown package: ${name}`)
-    const { id } = decode(registry[name])
-    await purge(await get(name, { pinned: false }))
-    for (const other of list()) if (decode(registry[other]).id === id) delete registry[other]
+  async function drop (name_or_link) {
+    const name = name_of(name_or_link)
+    await purge(await get(name || name_or_link, { pinned: false }))
+    if (!name) return
+    delete registry[name]
     await save()
   }
 
-  async function export_files (name, dirpath) {
-    if (!registry[name]) throw new Error(`Unknown package: ${name}`)
+  async function export_files (name_or_link, dirpath) {
+    const link = link_of(name_or_link)
     if (!path.isAbsolute(dirpath)) throw new Error(`Not an absolute path: ${dirpath}`)
     const real = path.join(await fsp.realpath(path.dirname(dirpath)), path.basename(dirpath))
     if (inside(await fsp.realpath(root), real)) throw new Error('Export must be outside managed storage')
-    const drive = await get(name, { pinned: false })
+    const drive = await get(link, { pinned: false })
     try { await export_folder(drive, real) } finally { await drive.close() }
     return real
   }

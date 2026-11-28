@@ -43,7 +43,7 @@ async function remote (root = packs.STORAGE) {
     pkg: namespace('pkg', ['list', 'info', 'create', 'export', 'drop']),
     cap: namespace('cap', ['list', 'info', 'expand', 'grant', 'revoke']),
     bot: {
-      ...namespace('bot', ['list', 'see', 'create', 'build', 'run', 'end', 'log', 'drop']),
+      ...namespace('bot', ['list', 'see', 'create', 'build', 'run', 'end', 'log', 'export', 'drop']),
       attach: (name, print) => ({ done: call('bot', 'attach', [name], print) })
     }
   }

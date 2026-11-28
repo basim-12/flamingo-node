@@ -44,9 +44,9 @@ function drive_of (result) {
   return result.out.match(/^Drive: (\S+)$/m)[1]
 }
 
-async function export_pkg (name) {
+async function export_pkg (name, kind = 'pkg') {
   const folder = path.join(home, 'export-' + ++export_count)
-  await cli('pkg', name, folder)
+  await cli(kind, name, folder)
   return folder
 }
 
@@ -118,8 +118,8 @@ test('the generator writes a 12-word wallet.json', async t => {
 test('each bot gets its own identity', async t => {
   t.is((await cli('bot', '+alice', 'flamingo-node/generate?ask=no')).code, 0)
   t.is((await cli('bot', '+bob', 'flamingo-node/generate?ask=no')).code, 0)
-  const alice = await export_pkg('alice')
-  const bob = await export_pkg('bob')
+  const alice = await export_pkg('alice', 'bot')
+  const bob = await export_pkg('bob', 'bot')
   t.alike(fs.readdirSync(alice).sort(), ['bot.json', 'wallet.json'])
   t.is(read_json(path.join(alice, 'bot.json')).run, code_link + '/index.js', 'pinned to this code')
   t.not(read_json(path.join(alice, 'wallet.json')).mnemonic, read_json(path.join(bob, 'wallet.json')).mnemonic)

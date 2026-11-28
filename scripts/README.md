@@ -40,7 +40,8 @@ full: [tasks/README.md](tasks/README.md).
 | --- | --- | --- |
 | `cli bot` | List every bot | 📦 |
 | `cli bot +<name> <specifier>` | Make a new bot. Its drive must end up with a `bot.json` | 📦 |
-| `cli bot <name>`, or `--see` after it | Its drive, package, output drive, log length, and whether it runs | 📦 |
+| `cli bot <name>`, or `--see` after it | Its drive, output drive, log length, and whether it runs | 📦 |
+| `cli bot <name> <dirpath>` | Copy its drive's files into a new folder | 📦 |
 | `cli bot <name> --build` | Run the code drive's `setup.js` in a sandbox, into the output drive | 📦 |
 | `cli bot <name> --run` | Start it in the background | 📦 |
 | `cli bot <name> --run --attach` | Watch it in this terminal, starting it first if needed. Ctrl+C stops watching, not the bot | 📦 |
@@ -53,7 +54,6 @@ full: [tasks/README.md](tasks/README.md).
 cli bot +mybot demo/generate
 # Name: mybot
 # Drive: dat://2.0.wrueczrc91su5jpaaa58sh98x1dqy6ogam4s98nssxaj59qt7ioo.df2721aa…
-# Package: mybot
 # Output: dat://0.0.y4qhrwwa75m3rtixyjuwcmfenoytep1kuej8fnqc18rr641swpsy.bb30a42c…
 # Log: 0 lines
 # Status: stopped

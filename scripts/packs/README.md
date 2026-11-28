@@ -54,7 +54,7 @@ const pkgs = await packs(root)
 api for the same folder.
 
 Names are read from `pkgs.json` straight away, but the drive storage is only opened the first
-time a function needs a drive. So `list`, `get`, `find` and `info` still work while another
+time a function needs a drive. So `list` and `info` still work while another
 process has the storage open. A function that needs a drive then fails with
 `Drive storage is in use by another process, such as a running bot`. How the folder is laid
 out is in [DESIGN.md](DESIGN.md).
@@ -62,21 +62,37 @@ out is in [DESIGN.md](DESIGN.md).
 Each package name points at one exact revision of its drive, written as a
 [`dat://` reference](../reference/README.md). Most functions below take or return one.
 
-### `create(name, spec, { namespace, prepare })`
+### `create(name, spec)`
 
-What `cli pkg +<name> <specifier>` calls. It makes a new, empty drive and fills it from `spec`:
-a folder's files are copied in, another drive's files are copied in, or a generator is run
-into it. Then it calls `prepare`, saves `name` in `pkgs.json`, and returns the new drive
-reference. If any step throws, the new drive is deleted, so `name` stays free.
+What `cli pkg +<name> <specifier>` calls. It makes a new drive from `spec` with
+[`make`](#makename-spec--namespace-prepare-), saves `name` in `pkgs.json`, and returns the
+new `dat://` reference.
 
 | | |
 | --- | --- |
 | `name` | the new package's name |
 | `spec` | a [specifier](../README.md#specifiers). A local path has to be absolute |
-| `namespace` | a group in the storage that the new drive is kept under, `pkg` unless given. A module built on `packs` passes its own, so its drives are kept apart: [tasks](../tasks/README.md) passes `bot` |
-| `prepare(drive, code)` | called once the drive is filled, before `name` is saved, so the caller can add files of its own. `code` is the `dat://` reference of the generator's drive, or `null` when no generator ran |
 
-Throws `Package already exists: <name>`, or what [`source`](#sourcespec) throws.
+Throws `Package already exists: <name>`, or what `make` throws.
+
+### `make(name, spec, { namespace, prepare })`
+
+Makes a new, empty drive and fills it from `spec`: a folder's files are copied in, another
+drive's files are copied in, or a generator is run into it. Then it calls `prepare` and
+returns the new `dat://` reference. If any step throws, the new drive is deleted.
+
+`create` is `make` plus a name in `pkgs.json`. A module built on `packs` calls `make` for a
+drive that is its own and not a package: [tasks](../tasks/README.md) makes a bot's drive this
+way, so `cli pkg` doesn't list it.
+
+| | |
+| --- | --- |
+| `name` | a name for the group the drive is kept under in the storage. It is not saved anywhere else |
+| `spec` | a [specifier](../README.md#specifiers). A local path has to be absolute |
+| `namespace` | a group in the storage that the new drive is kept under, `pkg` unless given, so one module's drives are kept apart from another's. `tasks` passes `bot` |
+| `prepare(drive, code)` | called once the drive is filled, so the caller can add files of its own. `code` is the `dat://` reference of the generator's drive, or `null` when no generator ran |
+
+Throws what [`source`](#sourcespec) throws, or what the generator throws.
 
 ### `list()`
 
@@ -92,27 +108,27 @@ that drive.
 | --- | --- |
 | `name_or_link` | a package name, or a `dat://` reference to a package's drive at any revision |
 
-### `export(name, dirpath)`
+### `export(name_or_link, dirpath)`
 
-What `cli pkg <name> <dirpath>` calls. Copies the package's latest files into a new folder,
-and returns the folder's real path.
+What `cli pkg <name> <dirpath>` and `cli bot <name> <dirpath>` call. Copies the drive's latest
+files into a new folder, and returns the folder's real path.
 
 | | |
 | --- | --- |
-| `name` | a package name |
+| `name_or_link` | a package name, or a `dat://` reference to any drive on this machine |
 | `dirpath` | where to make the folder: an absolute path that doesn't exist yet, whose parent does, and that is outside `root` |
 
-Throws `Unknown package: <name>`, `Not an absolute path: <dirpath>`,
+Throws `Unknown package: <name_or_link>`, `Not an absolute path: <dirpath>`,
 `Export must be outside managed storage`, or `EEXIST` if `dirpath` already exists.
 
-### `drop(name)`
+### `drop(name_or_link)`
 
-What `cli pkg -<name>` calls. Deletes the package's drive, and every other name that points at
-the same drive. Throws `Unknown package: <name>`.
+What `cli pkg -<name>` and `cli bot -<name>` call. Deletes a drive's data, and the package name
+that points at it, if there is one. Throws `Unknown package: <name_or_link>`.
 
 | | |
 | --- | --- |
-| `name` | a package name |
+| `name_or_link` | a package name, or a `dat://` reference to any drive on this machine |
 
 ### `get(name_or_link, { pinned })`
 
@@ -133,15 +149,6 @@ const code = await pkgs.get('site')
 const generator = await code.get('/generate.js')
 await code.close()
 ```
-
-### `find(link)`
-
-Returns the name of the package whose drive `link` belongs to, or `undefined`. Any revision of
-that drive matches.
-
-| | |
-| --- | --- |
-| `link` | a `dat://` reference |
 
 ### `source(spec)`
 
@@ -202,16 +209,6 @@ the same drive.
 | --- | --- |
 | `namespace` | a group in the storage, like `build` |
 | `name` | a name inside that group |
-
-### `update(drive)`
-
-A drive that is written to gets a new revision, but its package names still point at the old
-one. `update` points every name for `drive` at its newest revision, saves `pkgs.json`, and
-returns the new `dat://` reference.
-
-| | |
-| --- | --- |
-| `drive` | an open drive |
 
 ### `close()`
 
