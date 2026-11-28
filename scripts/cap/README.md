@@ -15,7 +15,7 @@ Every module a drive's code can ask for is one of two kinds:
 
 ## Which code gets what
 
-The loader in [packs](../packs/README.md#code-loaded-from-drives) hands each kind of code a
+The loader in [packs](../packs/DESIGN.md#code-loaded-from-drives) hands each kind of code a
 different set of modules:
 
 | code | may require |

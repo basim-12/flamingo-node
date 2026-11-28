@@ -30,7 +30,7 @@ async function packs (root = STORAGE) {
   const caps = await capabilities(root)
   return { root, caps, close, list, get, find, info, source, open_drive, load, core, disk, create, update, drop, export: export_files }
 
-  // opened the first time a function needs a drive: README.md#api
+  // DESIGN.md#opening-the-storage
   async function drives () {
     if (corestore === null) {
       corestore = new Corestore(path.join(root, 'corestore'))
@@ -205,7 +205,7 @@ async function packs (root = STORAGE) {
     return real
   }
 
-  // README.md#code-loaded-from-drives
+  // DESIGN.md#code-loaded-from-drives
   async function run_from (drive, file, own, sandbox) {
     const provided = await modules_for(drive, own, sandbox)
     const protocol = new Module.Protocol({
@@ -250,7 +250,7 @@ function handled (promise) {
   return promise
 }
 
-// README.md#code-loaded-from-drives, and the messages in ../cap/README.md#what-a-refused-require-says
+// DESIGN.md#code-loaded-from-drives, and the messages in ../cap/README.md#what-a-refused-require-says
 function validate_cjs (source, url, provided, allows, strict) {
   const ast = acorn.parse(source, { ecmaVersion: 'latest', sourceType: 'script' })
   walk.simple(ast, {

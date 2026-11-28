@@ -53,72 +53,197 @@ drive, not its content. `length`, `fork` and `hash` pick out one revision of it.
 reference checks that revision's hash, so a reference can't quietly point at other
 content.
 
-## Storage
-
-```text
-~/.ds/            # or the root passed to packs()
-├── pkgs.json    # { "<package-name>": "dat://<its drive>", ... }
-└── corestore/   # the data of every drive, plus the hypercores core() returns
-```
-
 ## API
 
-`await packs(root = packs.STORAGE)` reads `pkgs.json` and returns an object with the
-functions below. `list()`, `get()`, `find()` and `info()` only read `pkgs.json`. The drive
-storage is opened the first time a function needs a drive, so reading names works even
-while another process has the storage open; a function that needs a drive then fails with
-`Drive storage is in use by another process`.
+```js
+const pkgs = await packs(root)
+```
 
-### Opening and closing
-
-| Function | What it does |
+| | |
 | --- | --- |
-| `close()` | Waits for `pkgs.json` to finish saving, and closes the drive storage if it was opened. |
+| `root` | the folder to keep everything in, an absolute path. `packs.STORAGE`, which is `~/.ds`, unless given |
 
-### Names
+`packs` returns the functions below, plus `root` and `caps`, the [cap](../cap/README.md#api)
+api for the same folder.
 
-| Function | What it does |
+Names are read from `pkgs.json` straight away, but the drive storage is only opened the first
+time a function needs a drive. So `list`, `get`, `find` and `info` still work while another
+process has the storage open. A function that needs a drive then fails with
+`Drive storage is in use by another process, such as a running bot`. How the folder is laid
+out is in [DESIGN.md](DESIGN.md).
+
+Each package name points at one exact revision of its drive, written as a
+[drive reference](#drive-references). Most functions below take or return one.
+
+### `create(name, spec, { namespace, prepare })`
+
+What `cli pkg +<name> <specifier>` calls. It makes a new, empty drive and fills it from `spec`:
+a folder's files are copied in, another drive's files are copied in, or a generator is run
+into it. Then it calls `prepare`, saves `name` in `pkgs.json`, and returns the new drive
+reference. If any step throws, the new drive is deleted, so `name` stays free.
+
+| | |
 | --- | --- |
-| `list()` | Package names, sorted. |
-| `get(name)` | The package's drive reference, or `undefined`. |
-| `find(link)` | The name of a package on the same drive as `link`, if any. |
-| `info(name)` | `Name: …` and `Drive: …` lines. Throws for an unknown name. |
+| `name` | the new package's name |
+| `spec` | a [specifier](../README.md#specifiers). A local path has to be absolute |
+| `namespace` | a group in the storage that the new drive is kept under, `pkg` unless given. A module built on `packs` passes its own, so its drives are kept apart: [tasks](../tasks/README.md) passes `bot` |
+| `prepare(drive, code)` | called once the drive is filled, before `name` is saved, so the caller can add files of its own. `code` is the drive reference of the generator's drive, or `null` when no generator ran |
 
-### Drives
+Throws `Package already exists: <name>`, or what [`source`](#sourcespec) throws.
 
-| Function | What it does |
+### `list()`
+
+What `cli pkg` calls. Returns every package name, sorted.
+
+### `info(name)`
+
+What `cli pkg <name>` calls. Returns the two lines it prints, `Name: <name>` and
+`Drive: <reference>`. Throws `Unknown package: <name>`.
+
+| | |
 | --- | --- |
-| `source(spec)` | Resolve a `<specifier>` ([which forms there are](../README.md#specifiers)) to what it points at: `{ local, generator }` for a local folder or file, or `{ link, file }` for a drive, plus `options` from `?query`. A local path has to be absolute; `./src` is refused with `Not an absolute path: ./src`. |
-| `open_drive(link, pinned = true)` | Open the drive behind `link`, after checking the revision's hash. Returns `{ drive, view, ref, close }`. `view` is what to read from: with `pinned`, a read only copy of exactly that revision; without it, the live drive itself. `ref` is `link` parsed by `packs.reference`. |
-| `disk(namespace, name)` | Returns a drive stored under `namespace` and `name`, for a drive datashell keeps without registering it as a package, such as a bot's output drive. The same two names reopen the same drive. Opens the drive storage. |
-| `core(namespace, name)` | Returns a hypercore (an append only list of records) stored under `namespace` and `name`, for data kept beside a drive rather than in it, such as a log. The same two names reopen the same core. Opens the drive storage. |
-| `load(from)` | Load the function a generator or a bot's `index.js` exports, from a `source()` result. The code is read straight from the drive at its pinned revision (or from its local folder); nothing is copied to disk. Returns `{ fn, code }`, where `code` is the drive's pinned reference. |
-| `create(name, spec, { namespace, prepare })` | `cli pkg +<name> <specifier>`. A local path in `spec` has to be absolute. `namespace` is where in the storage the new drive is made, `pkg` unless given; tasks passes `bot`. `prepare(drive, code)` runs after that, before the package is registered, and `code` is the generator's pinned drive reference, or `null` when nothing was generated. Returns the new package's drive reference. |
-| `update(drive)` | Moves every package on `drive` to the drive's latest revision in `pkgs.json`. Returns that revision's reference. |
-| `drop(name)` | `cli pkg -<name>`. Deletes the package's drive data and every package name registered for that drive. Throws for an unknown name. It does not touch bots: the cli deletes a bot on that drive first, through [tasks](../tasks/README.md). |
-| `export(name, dirpath)` | `cli pkg <name> <dirpath>`. `dirpath` has to be absolute, and outside the storage folder (`~/.ds`, or the root passed to `packs()`). Returns the folder's real path. |
+| `name` | a package name |
 
-### Helpers on the module
+### `export(name, dirpath)`
 
-| Function | What it does |
+What `cli pkg <name> <dirpath>` calls. Copies the package's latest files into a new folder,
+and returns the folder's real path.
+
+| | |
 | --- | --- |
-| `packs.reference(link)` | Parse a reference into `{ length, fork, id, hash, file, options }`. Throws if it isn't one. |
-| `packs.drive_link(drive)` | The reference for a drive's current revision. |
+| `name` | a package name |
+| `dirpath` | where to make the folder: an absolute path that doesn't exist yet, whose parent does, and that is outside `root` |
 
-## Code loaded from drives
+Throws `Unknown package: <name>`, `Not an absolute path: <dirpath>`,
+`Export must be outside managed storage`, or `EEXIST` if `dirpath` already exists.
 
-Generators and a bot's `index.js` run in this process through `bare-module`'s `Loader`
-(`bare-module` 7, which needs Bare 1.32 or newer). A `Module.Protocol` reads every
-file of the module graph straight from the drive, so relative requires, JSON, and
-text files such as a Dockerfile (`require('./Dockerfile', { with: { type: 'text' } })`)
-all come from the pinned revision.
+### `drop(name)`
 
-- **Modules from outside the drive.** Every drive's code may require the builtins, which
-  are `BUILTINS` in [cap/index.js](../cap/index.js): `bare-path`, `bare-url` and
-  `bare-crypto`. A bot's `index.js` may also require `sandbox`, and nothing else. A
-  generator may also require what its `package.json` lists and has been granted with
-  `cli cap +<name>`, and a generator run from a local file anything that has been granted.
-  This process loads those modules and hands them to the Loader as `builtins`. The rules
-  are in [cap](../cap/README.md).
-- **`require` and `import()`.** How they work for code from a drive is in
-  [CODE.md](../CODE.md#require).
+What `cli pkg -<name>` calls. Deletes the package's drive, and every other name that points at
+the same drive. Throws `Unknown package: <name>`.
+
+| | |
+| --- | --- |
+| `name` | a package name |
+
+### `get(name)`
+
+Returns the drive reference `name` points at, or `undefined` if there is no such package.
+
+| | |
+| --- | --- |
+| `name` | a package name |
+
+### `find(link)`
+
+The opposite of `get`: returns the name of the package whose drive `link` belongs to, or
+`undefined`. Any revision of that drive matches.
+
+| | |
+| --- | --- |
+| `link` | a drive reference |
+
+### `source(spec)`
+
+Works out what a specifier points at. `create` calls it first, to know how to fill the new
+drive.
+
+| | |
+| --- | --- |
+| `spec` | a [specifier](../README.md#specifiers). A local path has to be absolute |
+
+What it returns depends on what `spec` names:
+
+| `spec` | returns |
+| --- | --- |
+| a local folder or file | `{ local, generator, options }`: the real path, and `generator: true` if it is a file |
+| a `dat://` reference | `{ link, length, fork, id, hash, file, options }`: the reference and its parts |
+| a package name or drive id | `{ link, file, options }`: the drive reference it stands for |
+
+`file` is the path after the drive, like `/generate.js`, or `''` if there is none. `options`
+holds the `?key=value` pairs. Throws `Not an absolute path: <path>`,
+`No such file or folder: <path>`, `Source must not overlap managed storage`, or
+`Unknown package or source: <spec>`.
+
+### `open_drive(link, pinned = true)`
+
+Opens the drive `link` points at, after checking that the revision's hash matches, so a
+reference can't open different content than it names.
+
+| | |
+| --- | --- |
+| `link` | a drive reference |
+| `pinned` | `true` to read the drive exactly as it was at that revision, even if it has changed since. `false` to read it as it is now |
+
+Returns `{ drive, view, ref, close }`:
+
+| | |
+| --- | --- |
+| `drive` | the drive itself |
+| `view` | what to read from: the revision when `pinned`, otherwise `drive` |
+| `ref` | `link` split into its parts, by [`packs.reference`](#packsreferencelink) |
+| `close()` | closes `view` and `drive` |
+
+Throws `Drive is not available locally: <id>`, `Referenced drive revision is unavailable`, or
+`Drive hash mismatch`.
+
+### `load(from, sandbox)`
+
+Loads the function that a js file in a drive exports, without copying anything to disk. A
+generator is loaded this way, and so is a bot's `index.js`. What that code can `require` is in
+[CODE.md](../CODE.md).
+
+| | |
+| --- | --- |
+| `from` | what `source` returned for the file |
+| `sandbox` | what the code gets as `require('sandbox')`, the [sandbox api](../sandbox/README.md#the-api-requiresandbox). Left out for a generator |
+
+Returns `{ fn, code }`: the exported function, and the drive reference of the drive it came
+from, or `null` for a file on this machine. Throws `File not found in the drive: <file>`,
+`<file> must export a function`, or a refused `require`
+([cap](../cap/README.md#what-a-refused-require-says)).
+
+### `core(namespace, name)`
+
+Returns a hypercore, an append only list of records, kept in the storage under `namespace`
+and `name`. It suits data that grows line by line, like a log. Asking again with the same two
+names gives the same core.
+
+| | |
+| --- | --- |
+| `namespace` | a group in the storage, like `log` |
+| `name` | a name inside that group |
+
+### `disk(namespace, name)`
+
+Returns a drive kept in the storage under `namespace` and `name`. Unlike a package, it has no
+name in `pkgs.json`, so `cli pkg` doesn't list it. Asking again with the same two names gives
+the same drive.
+
+| | |
+| --- | --- |
+| `namespace` | a group in the storage, like `build` |
+| `name` | a name inside that group |
+
+### `update(drive)`
+
+A drive that is written to gets a new revision, but its package names still point at the old
+one. `update` points every name for `drive` at its newest revision, saves `pkgs.json`, and
+returns the new drive reference.
+
+| | |
+| --- | --- |
+| `drive` | an open drive |
+
+### `close()`
+
+Waits for `pkgs.json` to finish saving, then closes the drive storage if it was opened.
+
+### `packs.reference(link)`
+
+Splits a drive reference into `{ length, fork, id, hash, file, options }`. Throws
+`Invalid pinned drive reference: <link>`.
+
+### `packs.drive_link(drive)`
+
+Returns the drive reference of a drive's current revision.
